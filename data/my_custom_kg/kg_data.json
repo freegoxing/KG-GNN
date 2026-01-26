@@ -1,0 +1,856 @@
+{
+  "nodes": [
+    {
+      "id": 0,
+      "name": "傅里叶变换",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 1,
+      "name": "概率论基础",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 2,
+      "name": "信号与系统",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 3,
+      "name": "调制解调原理",
+      "type": "Algorithm"
+    },
+    {
+      "id": 4,
+      "name": "信道编码理论",
+      "type": "Algorithm"
+    },
+    {
+      "id": 5,
+      "name": "OFDM技术",
+      "type": "Algorithm"
+    },
+    {
+      "id": 6,
+      "name": "5G无线通信",
+      "type": "Task"
+    },
+    {
+      "id": 7,
+      "name": "卫星通信系统",
+      "type": "Task"
+    },
+    {
+      "id": 8,
+      "name": "信息论基础",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 9,
+      "name": "差错控制编码",
+      "type": "Algorithm"
+    },
+    {
+      "id": 10,
+      "name": "拉普拉斯变换",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 11,
+      "name": "Z变换",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 12,
+      "name": "数字信号处理",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 13,
+      "name": "滤波器设计",
+      "type": "Algorithm"
+    },
+    {
+      "id": 14,
+      "name": "PSK调制",
+      "type": "Algorithm"
+    },
+    {
+      "id": 15,
+      "name": "QAM调制",
+      "type": "Algorithm"
+    },
+    {
+      "id": 16,
+      "name": "MIMO技术",
+      "type": "Algorithm"
+    },
+    {
+      "id": 17,
+      "name": "雷达信号处理",
+      "type": "Task"
+    },
+    {
+      "id": 18,
+      "name": "物联网通信",
+      "type": "Task"
+    },
+    {
+      "id": 19,
+      "name": "蜂窝网络架构",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 20,
+      "name": "矩阵论基础",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 21,
+      "name": "最优化方法",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 22,
+      "name": "卷积定理",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 23,
+      "name": "相关与卷积",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 24,
+      "name": "频谱分析",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 25,
+      "name": "采样定理",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 26,
+      "name": "量化理论",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 27,
+      "name": "数字调制理论",
+      "type": "Algorithm"
+    },
+    {
+      "id": 28,
+      "name": "扩频通信",
+      "type": "Algorithm"
+    },
+    {
+      "id": 29,
+      "name": "CDMA系统",
+      "type": "Task"
+    },
+    {
+      "id": 30,
+      "name": "射频基础",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 31,
+      "name": "天线理论",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 32,
+      "name": "电磁场基础",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 33,
+      "name": "阵列天线",
+      "type": "Algorithm"
+    },
+    {
+      "id": 34,
+      "name": "波束形成",
+      "type": "Algorithm"
+    },
+    {
+      "id": 35,
+      "name": "毫米波通信",
+      "type": "Task"
+    },
+    {
+      "id": 36,
+      "name": "信道估计",
+      "type": "Algorithm"
+    },
+    {
+      "id": 37,
+      "name": "信道建模",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 38,
+      "name": "干扰管理",
+      "type": "Algorithm"
+    },
+    {
+      "id": 39,
+      "name": "认知无线电",
+      "type": "Task"
+    },
+    {
+      "id": 40,
+      "name": "贝叶斯估计",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 41,
+      "name": "马尔可夫链",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 44,
+      "name": "LDPC码",
+      "type": "Algorithm"
+    },
+    {
+      "id": 45,
+      "name": "Polar码",
+      "type": "Algorithm"
+    },
+    {
+      "id": 47,
+      "name": "高速光通信",
+      "type": "Task"
+    },
+    {
+      "id": 48,
+      "name": "激光通信系统",
+      "type": "Task"
+    },
+    {
+      "id": 49,
+      "name": "光纤理论",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 50,
+      "name": "MIMO检测算法",
+      "type": "Algorithm"
+    },
+    {
+      "id": 51,
+      "name": "最大似然检测",
+      "type": "Algorithm"
+    },
+    {
+      "id": 52,
+      "name": "迭代检测",
+      "type": "Algorithm"
+    },
+    {
+      "id": 53,
+      "name": "链路自适应",
+      "type": "Algorithm"
+    },
+    {
+      "id": 54,
+      "name": "自适应调制编码",
+      "type": "Algorithm"
+    },
+    {
+      "id": 55,
+      "name": "资源分配算法",
+      "type": "Algorithm"
+    },
+    {
+      "id": 56,
+      "name": "边缘计算",
+      "type": "Task"
+    },
+    {
+      "id": 57,
+      "name": "智能反射面",
+      "type": "Task"
+    },
+    {
+      "id": 58,
+      "name": "无线定位技术",
+      "type": "Task"
+    },
+    {
+      "id": 59,
+      "name": "卫星链路预算",
+      "type": "Algorithm"
+    },
+    {
+      "id": 60,
+      "name": "数字通信系统",
+      "type": "Task"
+    },
+    {
+      "id": 61,
+      "name": "多址技术",
+      "type": "Basic_Knowledge"
+    },
+    {
+      "id": 62,
+      "name": "均衡技术",
+      "type": "Algorithm"
+    },
+    {
+      "id": 63,
+      "name": "同步技术",
+      "type": "Algorithm"
+    }
+  ],
+  "edges": [
+    {
+      "source": 0,
+      "target": 2,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 1,
+      "target": 3,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 2,
+      "target": 3,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 8,
+      "target": 4,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 4,
+      "target": 9,
+      "relation": "Composition"
+    },
+    {
+      "source": 3,
+      "target": 5,
+      "relation": "Sequential"
+    },
+    {
+      "source": 5,
+      "target": 6,
+      "relation": "Core_Technology"
+    },
+    {
+      "source": 4,
+      "target": 6,
+      "relation": "Application"
+    },
+    {
+      "source": 3,
+      "target": 7,
+      "relation": "Application"
+    },
+    {
+      "source": 9,
+      "target": 7,
+      "relation": "Application"
+    },
+    {
+      "source": 0,
+      "target": 8,
+      "relation": "Sequential"
+    },
+    {
+      "source": 1,
+      "target": 8,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 10,
+      "target": 12,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 12,
+      "target": 13,
+      "relation": "Sequential"
+    },
+    {
+      "source": 14,
+      "target": 15,
+      "relation": "Sequential"
+    },
+    {
+      "source": 15,
+      "target": 5,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 16,
+      "target": 6,
+      "relation": "Core_Technology"
+    },
+    {
+      "source": 13,
+      "target": 47,
+      "relation": "Application"
+    },
+    {
+      "source": 12,
+      "target": 17,
+      "relation": "Application"
+    },
+    {
+      "source": 3,
+      "target": 18,
+      "relation": "Application"
+    },
+    {
+      "source": 19,
+      "target": 6,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 20,
+      "target": 16,
+      "relation": "Foundation"
+    },
+    {
+      "source": 21,
+      "target": 55,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 22,
+      "target": 12,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 23,
+      "target": 22,
+      "relation": "Sequential"
+    },
+    {
+      "source": 24,
+      "target": 25,
+      "relation": "Sequential"
+    },
+    {
+      "source": 25,
+      "target": 12,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 26,
+      "target": 12,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 27,
+      "target": 14,
+      "relation": "Composition"
+    },
+    {
+      "source": 27,
+      "target": 15,
+      "relation": "Composition"
+    },
+    {
+      "source": 28,
+      "target": 29,
+      "relation": "Application"
+    },
+    {
+      "source": 30,
+      "target": 31,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 31,
+      "target": 33,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 32,
+      "target": 31,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 33,
+      "target": 34,
+      "relation": "Sequential"
+    },
+    {
+      "source": 34,
+      "target": 35,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 36,
+      "target": 16,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 37,
+      "target": 38,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 38,
+      "target": 6,
+      "relation": "Application"
+    },
+    {
+      "source": 39,
+      "target": 35,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 37,
+      "target": 58,
+      "relation": "Application"
+    },
+    {
+      "source": 40,
+      "target": 36,
+      "relation": "Foundation"
+    },
+    {
+      "source": 41,
+      "target": 40,
+      "relation": "Sequential"
+    },
+    {
+      "source": 44,
+      "target": 45,
+      "relation": "Sequential"
+    },
+    {
+      "source": 45,
+      "target": 6,
+      "relation": "Application"
+    },
+    {
+      "source": 44,
+      "target": 6,
+      "relation": "Application"
+    },
+    {
+      "source": 49,
+      "target": 47,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 47,
+      "target": 48,
+      "relation": "Sequential"
+    },
+    {
+      "source": 48,
+      "target": 58,
+      "relation": "Application"
+    },
+    {
+      "source": 50,
+      "target": 51,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 51,
+      "target": 52,
+      "relation": "Sequential"
+    },
+    {
+      "source": 53,
+      "target": 54,
+      "relation": "Sequential"
+    },
+    {
+      "source": 54,
+      "target": 6,
+      "relation": "Application"
+    },
+    {
+      "source": 55,
+      "target": 6,
+      "relation": "Application"
+    },
+    {
+      "source": 53,
+      "target": 56,
+      "relation": "Application"
+    },
+    {
+      "source": 57,
+      "target": 35,
+      "relation": "Synergy"
+    },
+    {
+      "source": 56,
+      "target": 6,
+      "relation": "Application"
+    },
+    {
+      "source": 59,
+      "target": 7,
+      "relation": "Application"
+    },
+    {
+      "source": 32,
+      "target": 59,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 0,
+      "target": 5,
+      "relation": "Foundation"
+    },
+    {
+      "source": 20,
+      "target": 44,
+      "relation": "Foundation"
+    },
+    {
+      "source": 20,
+      "target": 34,
+      "relation": "Foundation"
+    },
+    {
+      "source": 20,
+      "target": 50,
+      "relation": "Foundation"
+    },
+    {
+      "source": 1,
+      "target": 36,
+      "relation": "Foundation"
+    },
+    {
+      "source": 1,
+      "target": 9,
+      "relation": "Foundation"
+    },
+    {
+      "source": 40,
+      "target": 51,
+      "relation": "Foundation"
+    },
+    {
+      "source": 21,
+      "target": 34,
+      "relation": "Foundation"
+    },
+    {
+      "source": 21,
+      "target": 38,
+      "relation": "Foundation"
+    },
+    {
+      "source": 8,
+      "target": 55,
+      "relation": "Foundation"
+    },
+    {
+      "source": 37,
+      "target": 5,
+      "relation": "Synergy"
+    },
+    {
+      "source": 37,
+      "target": 16,
+      "relation": "Synergy"
+    },
+    {
+      "source": 36,
+      "target": 54,
+      "relation": "Sequential"
+    },
+    {
+      "source": 50,
+      "target": 16,
+      "relation": "Composition"
+    },
+    {
+      "source": 33,
+      "target": 16,
+      "relation": "Foundation"
+    },
+    {
+      "source": 5,
+      "target": 16,
+      "relation": "Synergy"
+    },
+    {
+      "source": 34,
+      "target": 16,
+      "relation": "Application"
+    },
+    {
+      "source": 34,
+      "target": 57,
+      "relation": "Synergy"
+    },
+    {
+      "source": 57,
+      "target": 6,
+      "relation": "Core_Technology"
+    },
+    {
+      "source": 35,
+      "target": 6,
+      "relation": "Core_Technology"
+    },
+    {
+      "source": 18,
+      "target": 56,
+      "relation": "Sequential"
+    },
+    {
+      "source": 18,
+      "target": 6,
+      "relation": "Application"
+    },
+    {
+      "source": 24,
+      "target": 39,
+      "relation": "Sequential"
+    },
+    {
+      "source": 24,
+      "target": 5,
+      "relation": "Application"
+    },
+    {
+      "source": 30,
+      "target": 35,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 30,
+      "target": 17,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 13,
+      "target": 3,
+      "relation": "Composition"
+    },
+    {
+      "source": 9,
+      "target": 44,
+      "relation": "Composition"
+    },
+    {
+      "source": 9,
+      "target": 45,
+      "relation": "Composition"
+    },
+    {
+      "source": 5,
+      "target": 55,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 54,
+      "target": 53,
+      "relation": "Composition"
+    },
+    {
+      "source": 38,
+      "target": 29,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 11,
+      "target": 13,
+      "relation": "Foundation"
+    },
+    {
+      "source": 58,
+      "target": 6,
+      "relation": "Application"
+    },
+    {
+      "source": 30,
+      "target": 59,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 28,
+      "target": 18,
+      "relation": "Application"
+    },
+    {
+      "source": 0,
+      "target": 24,
+      "relation": "Foundation"
+    },
+    {
+      "source": 20,
+      "target": 36,
+      "relation": "Foundation"
+    },
+    {
+      "source": 21,
+      "target": 50,
+      "relation": "Foundation"
+    },
+    {
+      "source": 3,
+      "target": 60,
+      "relation": "Composition"
+    },
+    {
+      "source": 4,
+      "target": 60,
+      "relation": "Composition"
+    },
+    {
+      "source": 12,
+      "target": 60,
+      "relation": "Composition"
+    },
+    {
+      "source": 63,
+      "target": 60,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 61,
+      "target": 6,
+      "relation": "Core_Technology"
+    },
+    {
+      "source": 61,
+      "target": 19,
+      "relation": "Core_Technology"
+    },
+    {
+      "source": 28,
+      "target": 61,
+      "relation": "Composition"
+    },
+    {
+      "source": 37,
+      "target": 62,
+      "relation": "Prerequisite"
+    },
+    {
+      "source": 62,
+      "target": 5,
+      "relation": "Synergy"
+    },
+    {
+      "source": 62,
+      "target": 16,
+      "relation": "Synergy"
+    },
+    {
+      "source": 2,
+      "target": 63,
+      "relation": "Prerequisite"
+    }
+  ]
+}

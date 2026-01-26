@@ -1,0 +1,9 @@
+{
+    "Application": 0,
+    "Composition": 1,
+    "Core_Technology": 2,
+    "Foundation": 3,
+    "Prerequisite": 4,
+    "Sequential": 5,
+    "Synergy": 6
+}

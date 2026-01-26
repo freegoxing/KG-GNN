@@ -1,0 +1,16 @@
+{
+    "concept:acquired": 0,
+    "concept:agentbelongstoorganization": 1,
+    "concept:agentcollaborateswithagent": 2,
+    "concept:agentcontrols": 3,
+    "concept:companyeconomicsector": 4,
+    "concept:headquarteredin": 5,
+    "concept:organizationheadquarteredincity": 6,
+    "concept:organizationhiredperson": 7,
+    "concept:organizationterminatedperson": 8,
+    "concept:subpartof": 9,
+    "concept:subpartoforganization": 10,
+    "concept:televisionstationaffiliatedwith": 11,
+    "concept:topmemberoforganization": 12,
+    "concept:worksfor": 13
+}

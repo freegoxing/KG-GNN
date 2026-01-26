@@ -1,0 +1,244 @@
+"""
+RL 策略网络训练脚本 (V2, 解耦数据加载)
+
+职责：
+- 支持 "custom" 和 "standard" 数据集类型。
+- 加载预训练的节点嵌入和知识图谱结构。
+- 根据数据集类型，智能地创建训练对 (h, t)。
+- 初始化 RL 策略网络 (RLPolicyNet) 和强化学习环境。
+- 启动 Actor-Critic 训练过程并保存模型检查点。
+"""
+import json
+import argparse
+import os
+from typing import Dict, List
+
+from torch_geometric.data import Data
+import torch
+import random
+from collections import defaultdict, deque
+
+# 本项目模块导入
+from rgcn_rl_planner.models import RLPolicyNet
+from rgcn_rl_planner.trainer import RLEnvironment, RLTrainer
+from rgcn_rl_planner.data_loader import load_custom_kg_from_json, load_standard_dataset
+from rgcn_rl_planner.data_utils import process_custom_kg, process_standard_kg, calculate_pagerank
+
+def has_path(start_node: int, end_node: int, adj: Dict[int, List[int]]) -> bool:
+    """使用广度优先搜索 (BFS) 检查两个节点之间是否存在路径。"""
+    if start_node == end_node: return True
+    q = deque([start_node])
+    visited = {start_node}
+    while q:
+        curr = q.popleft()
+        if curr not in adj: continue
+        for neighbor in adj[curr]:
+            if neighbor == end_node: return True
+            if neighbor not in visited:
+                visited.add(neighbor)
+                q.append(neighbor)
+    return False
+
+def main(args):
+    """主训练函数 (V2)"""
+    # --- 1. 环境和路径设置 ---
+    device = torch.device('cuda' if torch.cuda.is_available() and args.use_cuda else 'cpu')
+    print(f"--- 使用设备: {device} ---")
+    torch.manual_seed(args.seed)
+    if device.type == 'cuda': torch.cuda.manual_seed(args.seed)
+
+    # 根据数据集名称动态设置路径
+    data_root = os.path.join(args.data_dir, args.dataset_name)
+    model_dir = os.path.join(args.model_root_dir, args.dataset_name)
+    os.makedirs(model_dir, exist_ok=True)
+
+    embedding_path = os.path.join(data_root, args.embedding_filename)
+    node_map_path = os.path.join(data_root, args.node_map_filename)
+    relation_map_path = os.path.join(data_root, args.relation_map_filename)
+
+    # --- 2. 加载和处理数据 ---
+    print(f"--- 正在加载和处理数据集: {args.dataset_name} ({args.dataset_type}) ---")
+    try:
+        if args.dataset_type == 'custom':
+            raw_kg = load_custom_kg_from_json(os.path.join(data_root, "kg_data.json"))
+            with open(node_map_path, 'r', encoding='utf-8') as f: entity_map = json.load(f)
+            with open(relation_map_path, 'r', encoding='utf-8') as f: relation_map = json.load(f)
+            data, entity_map, relation_map, pagerank_values = process_custom_kg(raw_kg, entity_map, relation_map)
+            # 对于 custom 类型，训练环境和图是一致的
+            data_for_rl_env = data
+
+        elif args.dataset_type == 'standard':
+            train_raw, valid_raw, test_raw = load_standard_dataset(data_root)
+            # **重要改动**: 现在接收所有三元组
+            data, entity_map, relation_map, train_triplets, valid_triplets, test_triplets = process_standard_kg(
+                train_raw, valid_raw, test_raw
+            )
+
+            # **V3 修复**: 为 RL 环境构建一个包含所有知识的完整图
+            print("--- 正在为 RL 训练环境构建完整的知识图 ---")
+            all_triplets = train_triplets + valid_triplets + test_triplets
+            edge_index_list = [[h, t] for h, r, t in all_triplets]
+            edge_type_list = [r for h, r, t in all_triplets]
+            
+            node_embeddings_for_data = torch.load(embedding_path, map_location=torch.device('cpu'))
+
+            data_for_rl_env = Data(
+                x=node_embeddings_for_data, # 从 data 对象中获取 x
+                edge_index=torch.tensor(edge_index_list, dtype=torch.long).t().contiguous(),
+                edge_type=torch.tensor(edge_type_list, dtype=torch.long),
+                num_nodes=data.num_nodes
+            )
+            print(f"RL 环境图构建完成: {data_for_rl_env.num_edges} 条边。")
+            
+            # 在完整的图上计算 PageRank
+            pagerank_values = calculate_pagerank(data_for_rl_env)
+        else:
+            raise ValueError("`dataset_type` 必须是 'custom' 或 'standard'")
+
+        node_embeddings = torch.load(embedding_path, map_location=device)
+        # 确保两个 data 对象都有嵌入
+        data.x = node_embeddings
+        data_for_rl_env.x = node_embeddings
+
+    except (FileNotFoundError, ValueError) as e:
+        print(f"错误: 数据加载失败。 {e}")
+        print("请确保您已为该数据集运行了 `train_rgcn.py` 来生成嵌入和映射文件。")
+        return
+
+    data = data.to(device)
+    data_for_rl_env = data_for_rl_env.to(device) # 将新图也移动到设备
+    embedding_dim = data.num_features
+    print(f"数据加载完成: {data.num_nodes} 个节点, 嵌入维度: {embedding_dim}。")
+
+    # --- 3. 初始化模型和环境 ---
+    print("--- 正在初始化 RLPolicyNet、环境和训练器 ---")
+    model = RLPolicyNet(embedding_dim, args.gru_hidden_dim).to(device)
+    
+    # **V3 修复**: 使用为环境专门构建的 `data_for_rl_env`
+    env = RLEnvironment(
+        data=data_for_rl_env,
+        node_map=entity_map,
+        relation_map=relation_map,
+        node_embeddings=node_embeddings,
+        max_path_length=args.max_path_length,
+        pagerank_values=pagerank_values,
+        optimal_path_length=args.optimal_path_length,
+        reward_alpha=args.reward_alpha,
+        reward_eta=args.reward_eta,
+        length_reward_n=args.length_reward_n,
+        length_reward_sigma=args.length_reward_sigma
+    )
+    trainer = RLTrainer(env, model, node_embeddings, device, args.learning_rate, args.discount_factor,
+                        args.entropy_coeff, args.use_scheduler, args.scheduler_step_size, args.scheduler_gamma)
+
+    # --- 4. 创建训练对 ---
+    print("--- 正在创建训练对 ---")
+    training_pairs = []
+    if args.dataset_type == 'custom':
+        adj = defaultdict(list)
+        for i in range(data.edge_index.size(1)):
+            adj[data.edge_index[0, i].item()].append(data.edge_index[1, i].item())
+        inv_node_map = {v: k for k, v in entity_map.items()}
+        basic_nodes = [int(inv_node_map[n['name']]) for n in raw_kg['nodes'] if n.get('type') == 'Basic_Knowledge']
+        task_nodes = [int(inv_node_map[n['name']]) for n in raw_kg['nodes'] if n.get('type') == 'Task']
+
+        if not basic_nodes or not task_nodes:
+            print("错误：在自定义数据中未找到 'Basic_Knowledge' 或 'Task' 类型的节点。")
+            return
+
+        # 采样有真实路径的节点对进行训练
+        while len(training_pairs) < args.num_training_pairs:
+            start, end = random.choice(basic_nodes), random.choice(task_nodes)
+            if start != end and has_path(start, end, adj):
+                training_pairs.append((start, end))
+    else: # standard
+        # 使用训练集中的 (头, 尾) 作为训练对
+        training_pairs = list(set([(h, t) for h, r, t in train_triplets if h != t]))
+        if len(training_pairs) > args.num_training_pairs:
+            training_pairs = random.sample(training_pairs, args.num_training_pairs)
+
+    if not training_pairs:
+        print("错误：未能创建任何训练对。")
+        return
+    print(f"已创建 {len(training_pairs)} 个训练对。")
+
+    # ---- DEBUG START for NELL-995 ----
+    if args.dataset_name == 'NELL-995' and training_pairs:
+        print("\n--- [DEBUG] 正在对第一个 NELL-995 训练对进行预演 ---")
+        
+        first_h, first_t = training_pairs[0]
+        inv_entity_map = {v: k for k, v in entity_map.items()}
+        
+        h_name = inv_entity_map.get(first_h, "未知实体")
+        t_name = inv_entity_map.get(first_t, "未知实体")
+        
+        print(f"训练对 #1: ('{h_name}', '{t_name}') -> (ID: {first_h}, ID: {first_t})")
+        
+        # Check adjacency list in the environment
+        env_adj = env.adjacency_list
+        neighbors_with_rels = env_adj.get(first_h, [])
+        
+        print(f"节点 {first_h} ('{h_name}') 在环境图中的邻居数量: {len(neighbors_with_rels)}")
+        if neighbors_with_rels:
+            neighbor_names = [inv_entity_map.get(n_id, "未知") for n_id, rel_id in neighbors_with_rels]
+            print(f"邻居列表: {neighbor_names}")
+        
+        # Simulate the first step
+        env.reset(first_h, first_t)
+        valid_actions = env.get_valid_actions()
+        print(f"调用 env.get_valid_actions() 后，可行动作数量: {len(valid_actions)}")
+        
+        if not valid_actions:
+            print("!!! [DEBUG] 警告: get_valid_actions() 返回空列表，代理无法行动! 这是导致指标为零的直接原因。!!!")
+        
+        print("--- [DEBUG] 预演结束 ---\n")
+    # ---- DEBUG END ----
+
+    # --- 5. 开始训练 ---
+    trainer.train(training_pairs, args.num_episodes, args.gradient_accumulation_steps,
+                  args.print_every, args.save_every, model_dir)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="RL 路径规划模型训练脚本 (V2)")
+
+    # 数据集和路径参数
+    parser.add_argument('--dataset_type', type=str, default='custom', choices=['custom', 'standard'], help='数据集类型')
+    parser.add_argument('--dataset_name', type=str, default='my_custom_kg', help='数据集名称 (将作为子目录名)')
+    parser.add_argument('--data_dir', type=str, default='./data', help='存放所有数据集的根目录')
+    parser.add_argument('--model_root_dir', type=str, default='./checkpoints', help='存放所有模型检查点的根目录')
+
+    # 文件名参数
+    parser.add_argument('--embedding_filename', type=str, default='node_embeddings.pt', help='节点嵌入文件名')
+    parser.add_argument('--node_map_filename', type=str, default='node_map.json', help='节点/实体映射文件名')
+    parser.add_argument('--relation_map_filename', type=str, default='relation_map.json', help='关系映射文件名')
+
+    # RL 模型和训练参数
+    parser.add_argument('--gru_hidden_dim', type=int, default=16, help='路径记忆 GRU 的隐藏层维度')
+    parser.add_argument('--learning_rate', type=float, default=0.0001, help='优化器学习率')
+    parser.add_argument('--discount_factor', type=float, default=0.99, help='奖励折扣因子 (gamma)')
+    parser.add_argument('--entropy_coeff', type=float, default=0.05, help='熵损失系数，鼓励探索')
+    parser.add_argument('--max_path_length', type=int, default=10, help='智能体探索的最大路径长度')
+    parser.add_argument('--num_episodes', type=int, default=40000, help='训练的总 episodes 数量')
+    parser.add_argument('--num_training_pairs', type=int, default=1000, help='用于训练的节点对数量 (对于custom是目标数，对于standard是最大采样数)')
+    parser.add_argument('--gradient_accumulation_steps', type=int, default=32, help='梯度累积的步数')
+
+    # 学习率调度器参数
+    parser.add_argument('--use_scheduler', action='store_true', help='启用学习率调度器')
+    parser.add_argument('--scheduler_step_size', type=int, default=1000, help='学习率调度器的步长 (episodes)')
+    parser.add_argument('--scheduler_gamma', type=float, default=0.95, help='学习率调度器的衰减因子')
+
+    # 奖励函数参数
+    parser.add_argument('--optimal_path_length', type=int, default=None, help='钟形长度奖励的中心 (最佳路径长度)')
+    parser.add_argument('--reward_alpha', type=float, default=0.1, help='PageRank 知识增益奖励权重')
+    parser.add_argument('--reward_eta', type=float, default=1.0, help='势能整形奖励的权重')
+    parser.add_argument('--length_reward_n', type=float, default=2.0, help='钟形长度奖励的峰值大小')
+    parser.add_argument('--length_reward_sigma', type=float, default=3.0, help='钟形长度奖励的宽度 (标准差)')
+
+    # 其他
+    parser.add_argument('--seed', type=int, default=42, help='随机种子')
+    parser.add_argument('--use_cuda', action='store_true', help='强制使用 CUDA (如果可用)')
+    parser.add_argument('--print_every', type=int, default=500, help='每隔多少个 episode 打印一次日志')
+    parser.add_argument('--save_every', type=int, default=500, help='每隔多少个 episode 保存一次模型检查点')
+
+    args = parser.parse_args()
+    main(args)

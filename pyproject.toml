@@ -1,0 +1,50 @@
+[project]
+name = "kg-gnn"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "torch",
+    "torchvision",
+    "cudf-cu13==25.12.*",
+    "dask-cudf-cu13==25.12.*",
+    "cuml-cu13==25.12.*",
+    "cugraph-cu13==25.12.*",
+    "nx-cugraph-cu13==25.12.*",
+    "cuxfilter-cu13==25.12.*",
+    "cucim-cu13==25.12.*",
+    "pylibraft-cu13==25.12.*",
+    "raft-dask-cu13==25.12.*",
+    "cuvs-cu13==25.12.*",
+    "torch-geometric>=2.7.0",
+    "matplotlib>=3.10.8",
+]
+
+[tool.uv]
+prerelease = "allow"
+index-strategy = "unsafe-best-match"
+
+[tool.uv.sources]
+cuda-python = { index = "nvidia" }
+torch = { index = "pytorch" }
+torchvision = { index = "pytorch" }
+cudf-cu13 = { index = "nvidia" }
+dask-cudf-cu13 = { index = "nvidia" }
+cuml-cu13 = { index = "nvidia" }
+cugraph-cu13 = { index = "nvidia" }
+nx-cugraph-cu13 = { index = "nvidia" }
+cuxfilter-cu13 = { index = "nvidia" }
+cucim-cu13 = { index = "nvidia" }
+pylibraft-cu13 = { index = "nvidia" }
+raft-dask-cu13 = { index = "nvidia" }
+cuvs-cu13 = { index = "nvidia" }
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu130"
+
+[[tool.uv.index]]
+name = "nvidia"
+url = "https://pypi.nvidia.com"
+
