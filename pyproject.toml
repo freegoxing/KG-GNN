@@ -19,6 +19,7 @@ dependencies = [
     "cuvs-cu13==25.12.*",
     "torch-geometric>=2.7.0",
     "matplotlib>=3.10.8",
+    "cugraph-pyg-cu13>=0.0.0a0",
 ]
 
 [tool.uv]

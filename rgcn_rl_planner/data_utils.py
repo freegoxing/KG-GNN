@@ -9,9 +9,11 @@ import json
 import torch
 import os
 import networkx as nx
+import cugraph
+import cudf
 from torch_geometric.data import Data
 from torch_geometric.utils import to_networkx
-from typing import List, Dict, Tuple, Set, Union, Any
+from typing import List, Dict, Tuple, Set, Union, Any, Optional
 
 from .data_loader import KnowledgeGraph
 
@@ -24,15 +26,75 @@ IntTriplets = List[Tuple[int, int, int]]
 
 # --- 通用处理函数 ---
 
+def pyg_to_cugraph(pyg_data: Data, directed: bool = True) -> Optional[cugraph.Graph]:
+    """
+    将 PyTorch Geometric (PyG) 的 Data 对象转换为 cugraph.Graph 对象。
+    此函数封装了从 PyG Tensor 到 cuDF DataFrame 再到 cugraph.Graph 的手动转换逻辑。
+
+    Args:
+        pyg_data (Data): 输入的 PyG Data 对象，应位于 CUDA 设备上。
+        directed (bool): 是否将图视为有向图。
+
+    Returns:
+        Optional[cugraph.Graph]: 转换后的 cugraph.Graph 对象，如果无法转换则返回 None。
+    """
+    if pyg_data.edge_index.device.type != 'cuda':
+        print("--- 错误: pyg_to_cugraph 需要数据在 CUDA 设备上。当前设备: {} ---".format(pyg_data.edge_index.device.type))
+        return None
+
+    try:
+        source_nodes = pyg_data.edge_index[0]
+        target_nodes = pyg_data.edge_index[1]
+
+        edge_df = cudf.DataFrame({
+            'source': source_nodes,
+            'target': target_nodes
+        })
+
+        cugraph_graph = cugraph.Graph(directed=directed)
+        cugraph_graph.from_cudf_edgelist(edge_df, source='source', destination='target')
+        
+        return cugraph_graph
+    except Exception as e:
+        print(f"--- 警告: PyG 到 cuGraph 的转换过程中发生错误: {e} ---")
+        return None
+
+
 def calculate_pagerank(data: Data) -> Dict[int, float]:
     """
-    使用 networkx 计算图中每个节点的 PageRank 值。
-    （此函数保持不变）
+    使用 cuGraph (GPU) 计算图中每个节点的 PageRank 值。
+    如果 CUDA 不可用或转换/计算失败，则自动退回到 NetworkX (CPU) 实现。
     """
     print("--- 正在计算 PageRank ---")
-    graph = to_networkx(data, to_undirected=False, node_attrs=None, edge_attrs=None)
+
+    # 优先尝试使用 cuGraph (GPU) 路径
+    if torch.cuda.is_available():
+        # 确保数据在 CUDA 设备上
+        if data.edge_index.device.type == 'cpu':
+            data_on_gpu = data.to('cuda')
+            print("--- PyG.Data 已从 CPU 临时移动到 CUDA 设备 ---")
+        else:
+            data_on_gpu = data
+        
+        # 调用独立的转换函数
+        cugraph_graph = pyg_to_cugraph(data_on_gpu, directed=True)
+        
+        if cugraph_graph:
+            try:
+                # 运行 cuGraph PageRank
+                pr_series = cugraph.pagerank(cugraph_graph)
+                pagerank_values = {node_id: score for node_id, score in pr_series.to_pandas().items()}
+                print("--- cuGraph PageRank 计算成功 ---")
+                return pagerank_values
+            except Exception as e:
+                print(f"--- 警告: cuGraph PageRank 计算失败: {e}。将退回到 NetworkX。 ---")
+    
+    # 如果以上任何步骤失败，则执行回退逻辑
+    print("--- 未使用 cuGraph 或 cuGraph 失败，将退回到 NetworkX (CPU) ---")
+    # 确保 networkx 使用的是原始的、可能在 CPU 上的数据
+    graph = to_networkx(data.cpu(), to_undirected=False, node_attrs=None, edge_attrs=None)
     pagerank_values = nx.pagerank(graph)
-    print("--- PageRank 计算完成 ---")
+    print("--- NetworkX PageRank 计算完成 ---")
     return pagerank_values
 
 

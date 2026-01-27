@@ -8,21 +8,26 @@ set -e # 如果任何命令失败，则立即退出
 dataset="FB15k-237"
 # 如果没有可用的 CUDA，请将 --use_cuda 标志移除或设置为空字符串 ""
 USE_CUDA_FLAG="--use_cuda"
+# 数据集类型
+DATASET_TYPE="standard"
 # 隐藏参数
 HIDDEN_DIM=64
+# 图表名称
+FILE_NAME="evaluation_summary_v2"
 
 echo "============================================================"
 echo ">>>>> [CLEAN] 清理 $dataset 的 checkpoints <<<<<"
 echo "============================================================"
 
-bash checkpoints/$dataset/clear.sh
-
+cd "checkpoints/$dataset"
+bash clear.sh
+cd ../..
 echo "============================================================"
 echo ">>>>> [TRAIN] 开始为数据集 '$dataset' 进行 RGCN 预训练 <<<<<"
 echo "============================================================"
 
 uv run train_rgcn.py \
-    --dataset_type standard \
+    --dataset_type "$DATASET_TYPE" \
     --dataset_name "$dataset" \
     --epochs 4000 \
     --hidden_channels 32 \
@@ -39,7 +44,7 @@ echo ">>>>> [TRAIN] 开始为数据集 '$dataset' 进行 RL 训练 <<<<<"
 echo "============================================================"
 
 uv run train_rl.py \
-    --dataset_type standard \
+    --dataset_type "$DATASET_TYPE" \
     --dataset_name "$dataset" \
     --num_episodes 80000 \
     --gru_hidden_dim $HIDDEN_DIM \
@@ -56,10 +61,11 @@ echo ">>>>> [EVAL] 开始为数据集 '$dataset' 进行模型评估 <<<<<"
 echo "============================================================"
 
 uv run evaluation.py \
-    --dataset_type standard \
+    --dataset_type "$DATASET_TYPE" \
     --dataset_name "$dataset" \
     --save_plot \
     --gru_hidden_dim $HIDDEN_DIM \
+    --plot_filename_base  "$FILE_NAME" \
     $USE_CUDA_FLAG
 
 echo "--- [EVAL] 模型评估完成: $dataset ---"

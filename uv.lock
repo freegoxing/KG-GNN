@@ -666,6 +666,15 @@ wheels = [
 ]
 
 [[package]]
+name = "cugraph-pyg-cu13"
+version = "0.0.0a0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/67/8a/306179c2cb5556e9b05d18106ceb0c26c127a9f7f2e21348393d47aa732a/cugraph_pyg_cu13-0.0.0a0.tar.gz", hash = "sha256:592b9db58dcd5005720e8f497f490e41ba2a75855d390392d51d1f4290c8dfd7", size = 484, upload-time = "2025-04-08T22:39:45.044Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/61/ea/ec4de11eeae63eb4dd2dc532eb4d359966a3a69a3b08950b62b3ad1cd52d/cugraph_pyg_cu13-0.0.0a0-py2.py3-none-any.whl", hash = "sha256:a3bd4738270de2145c03d052a0c716cb70ce4c1befd97a958a552f4416d38f6a", size = 1094, upload-time = "2025-04-08T22:32:38.801Z" },
+]
+
+[[package]]
 name = "cuml-cu13"
 version = "25.12.0"
 source = { registry = "https://pypi.nvidia.com/" }
@@ -1339,6 +1348,7 @@ dependencies = [
     { name = "cucim-cu13" },
     { name = "cudf-cu13" },
     { name = "cugraph-cu13" },
+    { name = "cugraph-pyg-cu13" },
     { name = "cuml-cu13" },
     { name = "cuvs-cu13" },
     { name = "cuxfilter-cu13" },
@@ -1357,6 +1367,7 @@ requires-dist = [
     { name = "cucim-cu13", specifier = "==25.12.*", index = "https://pypi.nvidia.com/" },
     { name = "cudf-cu13", specifier = "==25.12.*", index = "https://pypi.nvidia.com/" },
     { name = "cugraph-cu13", specifier = "==25.12.*", index = "https://pypi.nvidia.com/" },
+    { name = "cugraph-pyg-cu13", specifier = ">=0.0.0a0" },
     { name = "cuml-cu13", specifier = "==25.12.*", index = "https://pypi.nvidia.com/" },
     { name = "cuvs-cu13", specifier = "==25.12.*", index = "https://pypi.nvidia.com/" },
     { name = "cuxfilter-cu13", specifier = "==25.12.*", index = "https://pypi.nvidia.com/" },

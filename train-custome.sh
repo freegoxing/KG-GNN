@@ -5,15 +5,13 @@
 set -e # 如果任何命令失败，则立即退出
 
 # 要处理的标准数据集列表
-dataset="NELL-995"
+dataset="my_custom_kg"
 # 如果没有可用的 CUDA，请将 --use_cuda 标志移除或设置为空字符串 ""
 USE_CUDA_FLAG="--use_cuda"
 # 数据集类型
-DATASET_TYPE="standard"
+DATASET_TYPE="custom"
 # 隐藏参数
 HIDDEN_DIM=16
-# 图表名称
-FILE_NAME="evaluation_summary_v1"
 
 echo "============================================================"
 echo ">>>>> [CLEAN] 清理 $dataset 的 checkpoints <<<<<"
@@ -66,7 +64,6 @@ uv run evaluation.py \
     --dataset_name "$dataset" \
     --save_plot \
     --gru_hidden_dim $HIDDEN_DIM \
-    --plot_filename_base  "$FILE_NAME" \
     $USE_CUDA_FLAG
 
 echo "--- [EVAL] 模型评估完成: $dataset ---"
