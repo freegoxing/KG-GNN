@@ -3,12 +3,12 @@
 
 存放解耦后的 RGCN 编码器和 RL 策略网络。
 """
+from typing import Tuple, Optional
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.data import Data
 from torch_geometric.nn import RGCNConv
-from typing import List, Tuple, Optional
 
 
 class RGCNEncoder(nn.Module):
@@ -18,7 +18,9 @@ class RGCNEncoder(nn.Module):
     职责: 学习知识图谱中节点和关系的嵌入表示。
     使用一个可学习的嵌入层来替代 one-hot 编码，以节省内存。
     """
-    def __init__(self, num_nodes: int, embedding_dim: int, hidden_channels: int, out_channels: int, num_relations: int, num_bases: Optional[int] = None):
+
+    def __init__(self, num_nodes: int, embedding_dim: int, hidden_channels: int, out_channels: int, num_relations: int,
+                 num_bases: Optional[int] = None):
         """
         初始化 R-GCN 编码器层。
 
@@ -48,7 +50,7 @@ class RGCNEncoder(nn.Module):
         """
         # 直接从嵌入层获取所有节点的特征
         x = self.embedding.weight
-        
+
         # 后续传播与之前相同
         x = F.relu(self.rgcn1(x, edge_index, edge_type))
         x = self.dropout(x)
@@ -136,7 +138,7 @@ class RLPolicyNet(nn.Module):
         num_neighbors = neighbor_embs.shape[0]
 
         # 将路径记忆和目标嵌入重复，以匹配邻居数量
-        path_memory_repeated = next_path_memory.repeat(num_neighbors, 1)        # [num_neighbors, gru_hidden_dim]
+        path_memory_repeated = next_path_memory.repeat(num_neighbors, 1)  # [num_neighbors, gru_hidden_dim]
         target_emb_repeated = target_emb.unsqueeze(0).repeat(num_neighbors, 1)  # [num_neighbors, embedding_dim]
 
         # 拼接以形成策略网络的输入

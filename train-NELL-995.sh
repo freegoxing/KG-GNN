@@ -13,7 +13,7 @@ DATASET_TYPE="standard"
 # 隐藏参数
 HIDDEN_DIM=16
 # 图表名称
-FILE_NAME="evaluation_summary_v1"
+FILE_NAME="evaluation_summary_v2"
 
 echo "============================================================"
 echo ">>>>> [CLEAN] 清理 $dataset 的 checkpoints <<<<<"

@@ -9,17 +9,18 @@
 - 对 custom 类型数据集，沿用旧的采样逻辑。
 - 收集并可视化关键性能指标。
 """
-import json
 import argparse
+import glob
+import json
 import os
+import random
+import re
+from collections import defaultdict, deque
+from typing import List, Dict, Tuple, Set, Optional
+
+import numpy as np
 import torch
 from torch_geometric.data import Data
-import numpy as np
-import random
-import glob
-import re
-from typing import List, Dict, Tuple, Set, Optional
-from collections import defaultdict, deque
 
 # --- 动态导入 ---
 # 根据环境和用户选择，决定使用 cuML 还是 scikit-learn
@@ -27,10 +28,12 @@ USE_CUML = False
 try:
     from cuml.model_selection import KFold
     import cupy
+
     USE_CUML = True
     print("--- 已成功导入 cuML，将使用 GPU 进行交叉验证 ---")
 except ImportError:
     from sklearn.model_selection import KFold
+
     print("--- 未找到 cuML 或 cupy，将使用 scikit-learn (CPU) 进行交叉验证 ---")
 
 # --- 本项目模块导入 ---
@@ -113,13 +116,13 @@ def get_path_details(start_node_id: int,
             action_dist, _, path_memory = model(
                 node_embeddings[state].unsqueeze(0),
                 node_embeddings[end_node_id],
-                node_embeddings[valid_actions], # 只考虑未访问节点的嵌入
+                node_embeddings[valid_actions],  # 只考虑未访问节点的嵌入
                 path_memory
             )
 
             if action_dist is None:
                 break
-            
+
             # 选择概率最高的动作（贪心策略），注意索引要映射回原始 valid_actions
             action_index = action_dist.probs.argmax().item()
             action = valid_actions[action_index]
@@ -131,10 +134,10 @@ def get_path_details(start_node_id: int,
             visited.add(next_state)
             total_reward += reward
             state = next_state
-            
+
             if done:
                 break
-    
+
     success = path[-1] == end_node_id
     return path, total_reward, success
 
@@ -156,12 +159,12 @@ def evaluate_ranking_metrics(
         model: RLPolicyNet,
         env: RLEnvironment,
         eval_pairs_positive: List[Tuple[int, int]],
-        all_known_triplets: Optional[Set[Tuple[int, int, int]]], # For filtered ranking in standard datasets
-        adj: Dict[int, List[int]], # For has_path filtering
+        all_known_triplets: Optional[Set[Tuple[int, int, int]]],  # For filtered ranking in standard datasets
+        adj: Dict[int, List[int]],  # For has_path filtering
         num_entities: int,
         node_embeddings: torch.Tensor,
         device: torch.device,
-        num_candidate_neg_samples: int = 99 # 1 true + num_candidate_neg_samples false
+        num_candidate_neg_samples: int = 99  # 1 true + num_candidate_neg_samples false
 ) -> Dict[str, float]:
     """
     对模型进行排名指标评估 (MRR, Hits@N)。
@@ -180,64 +183,66 @@ def evaluate_ranking_metrics(
     """
     model.eval()
     ranks = []
-    
+
     # 获取所有实体ID列表，用于负采样
     all_entity_ids = list(range(num_entities))
 
     for start_id, true_target_id in eval_pairs_positive:
         candidate_targets = []
-        candidate_targets.append(true_target_id) # 添加真实目标
+        candidate_targets.append(true_target_id)  # 添加真实目标
 
         # 生成负样本
         neg_samples_generated = 0
         attempts = 0
-        max_attempts = num_candidate_neg_samples * 10 # 避免无限循环
-        
+        max_attempts = num_candidate_neg_samples * 10  # 避免无限循环
+
         while neg_samples_generated < num_candidate_neg_samples and attempts < max_attempts:
             # 随机选择一个负样本
             false_target_id = random.choice(all_entity_ids)
-            
+
             # 确保负样本不是真实目标
             if false_target_id == true_target_id:
                 attempts += 1
                 continue
-            
+
             # 过滤：如果 (start_id, false_target_id) 存在真实路径，则不作为负样本
             # 注意: 这里的has_path是基于adj的，adj是评估图的边，包含了训练/验证/测试的边
             if has_path(start_id, false_target_id, adj):
-                 attempts += 1
-                 continue
+                attempts += 1
+                continue
 
             # 针对标准数据集，如果 false_target_id 曾经在训练/验证/测试集中与 start_id 形成过任何关系 (h,r,t)，则过滤
             # 这里的all_known_triplets是(h,r,t)形式，has_path是(h,t)形式
             # 这是一个更严格的过滤，确保 false_target_id 确实是“不应该被连接”的
             if all_known_triplets:
                 found_known_relation = False
-                for r_idx in range(len(env.relation_map)): # 使用 env.relation_map 的长度获取关系总数
+                for r_idx in range(len(env.relation_map)):  # 使用 env.relation_map 的长度获取关系总数
                     if (start_id, r_idx, false_target_id) in all_known_triplets:
                         found_known_relation = True
                         break
                 if found_known_relation:
                     attempts += 1
                     continue
-            
+
             candidate_targets.append(false_target_id)
             neg_samples_generated += 1
             attempts += 1
-        
+
         if neg_samples_generated < num_candidate_neg_samples:
             # 如果未能生成足够多的负样本，发出警告或调整策略
-            print(f"警告: 为 ({start_id}, {true_target_id}) 生成的负样本不足 ({neg_samples_generated}/{num_candidate_neg_samples})")
+            print(
+                f"警告: 为 ({start_id}, {true_target_id}) 生成的负样本不足 ({neg_samples_generated}/{num_candidate_neg_samples})")
 
         # 对所有候选目标进行评分
-        target_scores = [] # 存储 (target_id, score, path_found)
+        target_scores = []  # 存储 (target_id, score, path_found)
         for cand_target_id in candidate_targets:
             score, path_found = get_path_score(start_id, cand_target_id, model, env, node_embeddings, device)
             target_scores.append((cand_target_id, score, path_found))
-        
+
         # 排序: 优先成功路径，其次是高分，最后是节点ID (保持确定性)
         # 注意: 如果path_found为False，score可能为0或负数。为了排名准确，成功路径应该总是排在失败路径之前。
-        target_scores.sort(key=lambda x: (x[2], x[1], -x[0]), reverse=True) # x[2] (path_found) True>False, x[1] (score) High->Low, -x[0] (target_id) Low->High for deterministic tie-break
+        target_scores.sort(key=lambda x: (x[2], x[1], -x[0]),
+                           reverse=True)  # x[2] (path_found) True>False, x[1] (score) High->Low, -x[0] (target_id) Low->High for deterministic tie-break
 
         # 找到真实目标的排名
         rank = -1
@@ -245,7 +250,7 @@ def evaluate_ranking_metrics(
             if cand_id == true_target_id:
                 rank = i + 1
                 break
-        
+
         if rank != -1:
             ranks.append(rank)
         else:
@@ -254,7 +259,7 @@ def evaluate_ranking_metrics(
             # 可以考虑将其排名设置为 num_candidate_neg_samples + 1 或 num_entities
             # 为了MRR/Hits@N的计算，假设它排在所有负样本之后
             ranks.append(num_candidate_neg_samples + 1)
-            
+
     return _calculate_mrr_hits(ranks)
 
 
@@ -262,12 +267,12 @@ def evaluate_model_checkpoint(
         model: RLPolicyNet,
         env: RLEnvironment,
         eval_pairs_positive: List[Tuple[int, int]],
-        adj: Dict[int, List[int]], # 新增: 传入邻接表
-        num_entities: int, # 新增: 传入实体总数
+        adj: Dict[int, List[int]],  # 新增: 传入邻接表
+        num_entities: int,  # 新增: 传入实体总数
         node_embeddings: torch.Tensor,
         device: torch.device,
-        all_known_triplets: Optional[Set[Tuple[int, int, int]]] = None, # 新增: 传入所有已知三元组，用于Filtered Ranking
-        num_candidate_neg_samples: int = 99 # 新增: 传入排名评估的负样本数量
+        all_known_triplets: Optional[Set[Tuple[int, int, int]]] = None,  # 新增: 传入所有已知三元组，用于Filtered Ranking
+        num_candidate_neg_samples: int = 99  # 新增: 传入排名评估的负样本数量
 ) -> Dict[str, float]:
     """对单个模型检查点进行评估 (计算 MRR, Hits@N)。"""
     model.eval()
@@ -286,6 +291,7 @@ def evaluate_model_checkpoint(
     )
     return ranking_metrics
 
+
 def main(args):
     """主评估函数 (V2)"""
     # --- 0. 环境和路径设置 ---
@@ -295,7 +301,7 @@ def main(args):
     device = torch.device('cuda' if torch.cuda.is_available() and args.use_cuda else 'cpu')
     print(f"--- 使用设备: {device} ---")
 
-    all_known_triplets_main: Optional[Set[Tuple[int, int, int]]] = None # 初始化以避免UnboundLocalError
+    all_known_triplets_main: Optional[Set[Tuple[int, int, int]]] = None  # 初始化以避免UnboundLocalError
 
     # 根据数据集名称动态设置路径
     data_root = os.path.join(args.data_dir, args.dataset_name)
@@ -319,7 +325,7 @@ def main(args):
             with open(relation_map_path, 'r', encoding='utf-8') as f:
                 relation_map = json.load(f)
                 data, entity_map, relation_map, pagerank_values = process_custom_kg(raw_kg, entity_map, relation_map)
-                all_known_triplets_main = None # 自定义数据集没有all_known_triplets的概念
+                all_known_triplets_main = None  # 自定义数据集没有all_known_triplets的概念
         elif args.dataset_type == 'standard':
             train_raw, valid_raw, test_raw = load_standard_dataset(data_root)
             data, entity_map, relation_map, train_triplets, valid_triplets, test_triplets = process_standard_kg(
@@ -371,7 +377,7 @@ def main(args):
             if start != end and not has_path(start, end, adj):
                 eval_pairs_negative.append((start, end))
 
-    else: # standard
+    else:  # standard
         eval_pairs_positive = [(h, t) for h, r, t in test_triplets]
         # 如果数量太多，可以进行采样
         if len(eval_pairs_positive) > args.num_eval_pairs:
@@ -383,11 +389,12 @@ def main(args):
     # 为了评估，需要在一个更丰富的图上进行，这个图包含训练集和验证集的边。
     # 这为测试集中的节点对提供了寻找路径的可能性。
     print("\n--- 正在为评估环境构建图 ---")
-    
+
     if args.dataset_type == 'standard':
         # 在评估时，代理应该能够访问完整的图（训练+验证+测试），以确保所有测试对的路径都是理论上可达的。
         # 这是评估路径发现算法的标准做法。
-        print(f"将使用 {len(train_triplets)} 个训练、{len(valid_triplets)} 个验证和 {len(test_triplets)} 个测试三元组构建评估图。")
+        print(
+            f"将使用 {len(train_triplets)} 个训练、{len(valid_triplets)} 个验证和 {len(test_triplets)} 个测试三元组构建评估图。")
         eval_graph_triplets = train_triplets + valid_triplets + test_triplets
 
         edge_index_list = [[h, t] for h, r, t in eval_graph_triplets]
@@ -399,13 +406,13 @@ def main(args):
             edge_type=torch.tensor(edge_type_list, dtype=torch.long),
             num_nodes=data.num_nodes
         ).to(device)
-        
+
         print(f"评估图构建完成: {data_for_eval_env.num_edges} 条边。")
-        
+
         print("--- 正在为评估图重新计算 PageRank ---")
         pagerank_for_eval = calculate_pagerank(data_for_eval_env)
 
-    else: # For 'custom' type
+    else:  # For 'custom' type
         print("--- 正在为 'custom' 数据集评估使用原始训练图 ---")
         data_for_eval_env = data
         pagerank_for_eval = pagerank_values
@@ -429,7 +436,7 @@ def main(args):
         print(f"错误: 在 '{model_dir}' 中未找到匹配 '{args.model_name_pattern}' 的模型文件。")
         return
     checkpoints = sorted([(int(re.search(r'_(\d+)\.pt$', f).group(1)), f)
-                           for f in model_files if re.search(r'_(\d+)\.pt$', f)])
+                          for f in model_files if re.search(r'_(\d+)\.pt$', f)])
     print(f"找到 {len(checkpoints)} 个模型检查点进行评估。")
 
     # --- 6. 循环评估 ---
@@ -437,7 +444,7 @@ def main(args):
     model = RLPolicyNet(embedding_dim, args.gru_hidden_dim).to(device)
 
     for i, (episode, model_path) in enumerate(checkpoints):
-        print(f"--- 评估模型 [{i+1}/{len(checkpoints)}]: {os.path.basename(model_path)} ---")
+        print(f"--- 评估模型 [{i + 1}/{len(checkpoints)}]: {os.path.basename(model_path)} ---")
         try:
             model.load_state_dict(torch.load(model_path, map_location=device))
         except Exception as e:
@@ -448,7 +455,7 @@ def main(args):
         fold_metrics = defaultdict(list)
         pos_splits = kf.split(np.array(eval_pairs_positive))
 
-        for fold, (train_idx, test_idx) in enumerate(pos_splits): # Changed to iterate only pos_splits
+        for fold, (train_idx, test_idx) in enumerate(pos_splits):  # Changed to iterate only pos_splits
             if USE_CUML:
                 test_idx = test_idx.get()
 
@@ -456,7 +463,7 @@ def main(args):
 
             metrics = evaluate_model_checkpoint(
                 model, env, test_pos, adj, data.num_nodes, node_embeddings, device,
-                all_known_triplets=all_known_triplets_main, # 使用main函数中的变量
+                all_known_triplets=all_known_triplets_main,  # 使用main函数中的变量
                 num_candidate_neg_samples=args.num_candidate_neg_samples
             )
             for key, value in metrics.items():
@@ -466,7 +473,8 @@ def main(args):
         history["episodes"].append(episode)
         for key, value in avg_metrics.items(): history[key].append(value)
         # 更新打印输出，显示MRR和Hits@N
-        print(f"  - MRR: {avg_metrics['mrr']:.4f}, Hits@1: {avg_metrics['hits@1']:.4f}, Hits@3: {avg_metrics['hits@3']:.4f}, Hits@10: {avg_metrics['hits@10']:.4f}")
+        print(
+            f"  - MRR: {avg_metrics['mrr']:.4f}, Hits@1: {avg_metrics['hits@1']:.4f}, Hits@3: {avg_metrics['hits@3']:.4f}, Hits@10: {avg_metrics['hits@10']:.4f}")
 
     # --- 7. 绘制并保存结果 ---
     if args.save_plot and history["episodes"]:
@@ -478,10 +486,12 @@ def main(args):
             if key in history:
                 try:
                     path = f"{save_plot_path}_{title_key}.png"
-                    plot_metric_over_time(history[key], f"{args.dataset_name} - {key}", history["episodes"], save_path=path)
+                    plot_metric_over_time(history[key], f"{args.dataset_name} - {key}", history["episodes"],
+                                          save_path=path)
                     print(f"图表已保存: {path}")
                 except Exception as e:
                     print(f"错误: 无法保存图表 {path}。{e}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="RL 模型批量评估脚本 (V2, 支持多数据集)")
@@ -497,14 +507,17 @@ if __name__ == "__main__":
     parser.add_argument('--embedding_filename', type=str, default='node_embeddings.pt', help='节点嵌入文件名')
     parser.add_argument('--node_map_filename', type=str, default='node_map.json', help='节点/实体映射文件名')
     parser.add_argument('--relation_map_filename', type=str, default='relation_map.json', help='关系映射文件名')
-    parser.add_argument('--model_name_pattern', type=str, default='rl_policy_net_episode_*.pt', help='模型文件的 glob 匹配模式')
+    parser.add_argument('--model_name_pattern', type=str, default='rl_policy_net_episode_*.pt',
+                        help='模型文件的 glob 匹配模式')
 
     # 模型和评估参数
     parser.add_argument('--gru_hidden_dim', type=int, default=16, help='路径记忆 GRU 的隐藏层维度')
     parser.add_argument('--k_folds', type=int, default=5, help='K-fold 交叉验证的折数')
     parser.add_argument('--max_path_length', type=int, default=10, help='智能体探索的最大路径长度')
-    parser.add_argument('--num_eval_pairs', type=int, default=100, help='用于评估的正样本对数量 (对于standard, 这是最大采样数)')
-    parser.add_argument('--num_candidate_neg_samples', type=int, default=19, help='排名评估中每个正样本对应的负样本数量 (1 true + N false)')
+    parser.add_argument('--num_eval_pairs', type=int, default=100,
+                        help='用于评估的正样本对数量 (对于standard, 这是最大采样数)')
+    parser.add_argument('--num_candidate_neg_samples', type=int, default=19,
+                        help='排名评估中每个正样本对应的负样本数量 (1 true + N false)')
 
     parser.add_argument('--use_cuda', action='store_true', help='启用 CUDA 和 cuML')
 
@@ -519,4 +532,3 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     main(args)
-

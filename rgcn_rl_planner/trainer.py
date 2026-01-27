@@ -6,15 +6,16 @@
 - RLTrainer: 封装了基于预训练嵌入的 Actor-Critic 算法的完整训练和更新逻辑。
 """
 
-import torch
-import torch.nn.functional as F
-import numpy as np
 import logging
 import os
-from torch.optim.lr_scheduler import StepLR  # 导入学习率调度器
-from torch_geometric.data import Data
 from collections import defaultdict
 from typing import List, Dict, Tuple, Optional
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+from torch.optim.lr_scheduler import StepLR  # 导入学习率调度器
+from torch_geometric.data import Data
 
 # 导入解耦后的 RLPolicyNet 模型
 from .models import RLPolicyNet
@@ -56,7 +57,8 @@ class RLEnvironment:
         self.max_path_length = max_path_length
         self.pagerank_values = pagerank_values
         # 如果未提供最佳路径长度，则默认设置为最大长度的80%
-        self.optimal_path_length = optimal_path_length if optimal_path_length is not None else int(max_path_length * 0.8)
+        self.optimal_path_length = optimal_path_length if optimal_path_length is not None else int(
+            max_path_length * 0.8)
 
         # 奖励函数超参数
         self.REWARD_ALPHA = reward_alpha
@@ -127,7 +129,7 @@ class RLEnvironment:
         self.visited.add(self.current_node)
 
         # 查找当前步所使用的关系类型
-        relation_id = -1 # 默认值，如果没有找到有效关系
+        relation_id = -1  # 默认值，如果没有找到有效关系
         for neighbor, rel in self.adjacency_list.get(prev_node, []):
             if neighbor == self.current_node:
                 relation_id = rel
@@ -274,7 +276,7 @@ class RLTrainer:
     def train(self,
               training_pairs: List[Tuple[int, int]],
               num_episodes: int,
-              gradient_accumulation_steps: int = 16, # 新增：梯度累积步数
+              gradient_accumulation_steps: int = 16,  # 新增：梯度累积步数
               print_every: int = 100,
               save_every: int = 200,
               model_save_dir: str = './checkpoints/'):
@@ -282,11 +284,10 @@ class RLTrainer:
         logging.info(f"--- 开始 RL 策略训练，共 {num_episodes} episodes on {self.device} ---")
         logging.info(f"--- 梯度将每 {gradient_accumulation_steps} episodes 累积更新一次 ---")
 
-
         success_count = 0
         total_rewards_list, path_lengths_list = [], []
         self.model.train()
-        self.optimizer.zero_grad() # 在训练开始前清零梯度
+        self.optimizer.zero_grad()  # 在训练开始前清零梯度
 
         for episode in range(num_episodes):
             start_node, target_node = training_pairs[episode % len(training_pairs)]
@@ -310,7 +311,7 @@ class RLTrainer:
             if (episode + 1) % gradient_accumulation_steps == 0:
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                 self.optimizer.step()
-                self.optimizer.zero_grad() # 更新后清零梯度，为下一批次做准备
+                self.optimizer.zero_grad()  # 更新后清零梯度，为下一批次做准备
                 # 如果调度器存在，则更新学习率
                 if self.scheduler:
                     self.scheduler.step()

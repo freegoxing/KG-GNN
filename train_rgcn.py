@@ -12,17 +12,17 @@ import os
 from typing import Optional
 
 import torch
-import torch.optim as optim
 import torch.nn.functional as F
-from torch_geometric.utils import negative_sampling
-from torch_geometric.data import Data
+import torch.optim as optim
 from torch.amp import autocast
 from torch.cuda.amp import GradScaler
+from torch_geometric.data import Data
+from torch_geometric.utils import negative_sampling
 
-from rgcn_rl_planner.models import RGCNEncoder
 # 解耦后的数据加载和处理模块
 from rgcn_rl_planner.data_loader import load_custom_kg_from_json, load_standard_dataset
 from rgcn_rl_planner.data_utils import process_custom_kg, process_standard_kg, save_mappings
+from rgcn_rl_planner.models import RGCNEncoder
 
 
 def train(encoder: RGCNEncoder,
@@ -42,7 +42,7 @@ def train(encoder: RGCNEncoder,
     with autocast('cuda', enabled=use_amp):
         # 直接从模型获取嵌入，不再传入 x
         z = encoder(data.edge_index, data.edge_type)
-        
+
         pos_edge_index = data.edge_index
         neg_edge_index = negative_sampling(
             edge_index=data.edge_index,
@@ -63,7 +63,7 @@ def train(encoder: RGCNEncoder,
             neg_logits, torch.zeros_like(neg_logits)
         )
         loss = pos_loss + neg_loss
-    
+
     # --- OOM 优化 2: 使用 AMP (混合精度) ---
     if use_amp and scaler:
         scaler.scale(loss).backward()
@@ -72,7 +72,7 @@ def train(encoder: RGCNEncoder,
     else:
         loss.backward()
         optimizer.step()
-        
+
     return loss.item()
 
 
@@ -92,7 +92,6 @@ def main(args):
     if use_amp:
         print("--- 自动混合精度 (AMP) 已启用 ---")
 
-
     # 根据数据集名称动态设置路径
     data_root = os.path.join(args.data_dir, args.dataset_name)
     model_dir = os.path.join(args.model_root_dir, args.dataset_name)
@@ -103,7 +102,6 @@ def main(args):
     embedding_save_path = os.path.join(data_root, args.embedding_filename)
     entity_map_path = os.path.join(data_root, args.node_map_filename)
     relation_map_path = os.path.join(data_root, args.relation_map_filename)
-
 
     # --- 2. 加载和预处理数据 ---
     print(f"--- 正在加载和处理数据集: {args.dataset_name} ({args.dataset_type}) ---")
@@ -191,7 +189,8 @@ if __name__ == "__main__":
     parser.add_argument('--model_root_dir', type=str, default='./checkpoints', help='存放所有模型检查点的根目录')
 
     # 文件名参数
-    parser.add_argument('--model_filename', type=str, default='rgcn_encoder_pretrained.pt', help='保存的 R-GCN 模型文件名')
+    parser.add_argument('--model_filename', type=str, default='rgcn_encoder_pretrained.pt',
+                        help='保存的 R-GCN 模型文件名')
     parser.add_argument('--embedding_filename', type=str, default='node_embeddings.pt', help='生成的节点嵌入文件名')
     parser.add_argument('--node_map_filename', type=str, default='node_map.json', help='节点/实体映射文件名')
     parser.add_argument('--relation_map_filename', type=str, default='relation_map.json', help='关系映射文件名')
@@ -210,7 +209,6 @@ if __name__ == "__main__":
     # OOM 优化参数
     parser.add_argument('--neg_sample_ratio', type=float, default=1.0, help='负采样比例 (相对于正样本数量)')
     parser.add_argument('--use_amp', action='store_true', help='启用自动混合精度 (AMP) 训练')
-
 
     # 其他参数
     parser.add_argument('--seed', type=int, default=42, help='随机种子')

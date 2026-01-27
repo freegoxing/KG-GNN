@@ -1,6 +1,6 @@
-import matplotlib.pyplot as plt
-import numpy as np
 from typing import List, Optional
+
+import matplotlib.pyplot as plt
 
 
 def plot_cumulative_rewards(rewards: List[float], title: str = "Cumulative Reward per Episode", xlabel: str = "Episode",

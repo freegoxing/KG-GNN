@@ -6,21 +6,22 @@
 """
 
 import json
-import torch
 import os
-import networkx as nx
-import cugraph
+from typing import List, Dict, Tuple, Set, Union, Optional
+
 import cudf
+import cugraph
+import networkx as nx
+import torch
 from torch_geometric.data import Data
 from torch_geometric.utils import to_networkx
-from typing import List, Dict, Tuple, Set, Union, Any, Optional
 
 from .data_loader import KnowledgeGraph
 
 # --- 类型注释 ---
 EntityMap = Dict[str, int]
 RelationMap = Dict[str, int]
-NodeMap = Dict[int, str] # 这是为自定义KG保留的旧格式
+NodeMap = Dict[int, str]  # 这是为自定义KG保留的旧格式
 IntTriplets = List[Tuple[int, int, int]]
 
 
@@ -39,7 +40,7 @@ def pyg_to_cugraph(pyg_data: Data, directed: bool = True) -> Optional[cugraph.Gr
         Optional[cugraph.Graph]: 转换后的 cugraph.Graph 对象，如果无法转换则返回 None。
     """
     if pyg_data.edge_index.device.type != 'cuda':
-        print("--- 错误: pyg_to_cugraph 需要数据在 CUDA 设备上。当前设备: {} ---".format(pyg_data.edge_index.device.type))
+        print(f"--- 错误: pyg_to_cugraph 需要数据在 CUDA 设备上。当前设备: {pyg_data.edge_index.device.type} ---")
         return None
 
     try:
@@ -48,13 +49,21 @@ def pyg_to_cugraph(pyg_data: Data, directed: bool = True) -> Optional[cugraph.Gr
 
         edge_df = cudf.DataFrame({
             'source': source_nodes,
-            'target': target_nodes
+            'destination': target_nodes
         })
 
-        cugraph_graph = cugraph.Graph(directed=directed)
-        cugraph_graph.from_cudf_edgelist(edge_df, source='source', destination='target')
-        
-        return cugraph_graph
+        G = cugraph.Graph(directed=directed)
+
+        # 使用边初始化图，节点会自动添加
+        G.from_cudf_edgelist(
+            edge_df,
+            source="source",
+            destination="destination",
+            store_transposed=True
+        )
+
+        return G
+
     except Exception as e:
         print(f"--- 警告: PyG 到 cuGraph 的转换过程中发生错误: {e} ---")
         return None
@@ -67,42 +76,43 @@ def calculate_pagerank(data: Data) -> Dict[int, float]:
     """
     print("--- 正在计算 PageRank ---")
 
-    # 优先尝试使用 cuGraph (GPU) 路径
     if torch.cuda.is_available():
-        # 确保数据在 CUDA 设备上
-        if data.edge_index.device.type == 'cpu':
-            data_on_gpu = data.to('cuda')
-            print("--- PyG.Data 已从 CPU 临时移动到 CUDA 设备 ---")
-        else:
-            data_on_gpu = data
-        
-        # 调用独立的转换函数
-        cugraph_graph = pyg_to_cugraph(data_on_gpu, directed=True)
-        
-        if cugraph_graph:
+        data_gpu = data.to("cuda") if data.edge_index.device.type == "cpu" else data
+
+        G = pyg_to_cugraph(data_gpu, directed=True)
+
+        if G is not None:
             try:
-                # 运行 cuGraph PageRank
-                pr_series = cugraph.pagerank(cugraph_graph)
-                pagerank_values = {node_id: score for node_id, score in pr_series.to_pandas().items()}
+                pr = cugraph.pagerank(
+                    G,
+                    alpha=0.85,
+                    max_iter=100,
+                    tol=1e-6
+                )
+
+                # cuGraph 返回的是 cuDF Series
+                pr_dict = {
+                    int(row['vertex']): float(row['pagerank'])
+                    for index, row in pr.to_pandas().iterrows()
+                }
+
                 print("--- cuGraph PageRank 计算成功 ---")
-                return pagerank_values
+                return pr_dict
+
             except Exception as e:
-                print(f"--- 警告: cuGraph PageRank 计算失败: {e}。将退回到 NetworkX。 ---")
-    
-    # 如果以上任何步骤失败，则执行回退逻辑
-    print("--- 未使用 cuGraph 或 cuGraph 失败，将退回到 NetworkX (CPU) ---")
-    # 确保 networkx 使用的是原始的、可能在 CPU 上的数据
-    graph = to_networkx(data.cpu(), to_undirected=False, node_attrs=None, edge_attrs=None)
-    pagerank_values = nx.pagerank(graph)
-    print("--- NetworkX PageRank 计算完成 ---")
-    return pagerank_values
+                print(f"--- cuGraph PageRank 失败: {e}，回退 NetworkX ---")
+
+    # NetworkX
+    print("--- 使用 NetworkX PageRank (CPU) ---")
+    G_nx = to_networkx(data.cpu(), to_undirected=False)
+    return nx.pagerank(G_nx, alpha=0.85, max_iter=100, tol=1e-6)
 
 
 def save_mappings(
-    entity_map: Union[EntityMap, NodeMap],
-    relation_map: RelationMap,
-    entity_map_path: str,
-    relation_map_path: str
+        entity_map: Union[EntityMap, NodeMap],
+        relation_map: RelationMap,
+        entity_map_path: str,
+        relation_map_path: str
 ):
     """
     将实体和关系映射保存到 JSON 文件。
@@ -124,9 +134,9 @@ def save_mappings(
 # --- 针对特定数据格式的处理函数 ---
 
 def process_custom_kg(
-    kg_data: KnowledgeGraph,
-    existing_node_map: Dict[str, str] = None,
-    existing_relation_map: RelationMap = None
+        kg_data: KnowledgeGraph,
+        existing_node_map: Dict[str, str] = None,
+        existing_relation_map: RelationMap = None
 ) -> Tuple[Data, NodeMap, RelationMap, Dict[int, float]]:
     """
     将来自JSON的自定义知识图谱数据转换为 PyTorch Geometric 的 Data 对象。
@@ -179,9 +189,9 @@ def process_custom_kg(
 
 
 def process_standard_kg(
-    train_triplets: List[Tuple[str, str, str]],
-    valid_triplets: List[Tuple[str, str, str]],
-    test_triplets: List[Tuple[str, str, str]]
+        train_triplets: List[Tuple[str, str, str]],
+        valid_triplets: List[Tuple[str, str, str]],
+        test_triplets: List[Tuple[str, str, str]]
 ) -> Tuple[Data, EntityMap, RelationMap, IntTriplets, IntTriplets, IntTriplets]:
     """
     处理从标准数据集加载的原始三元组列表。

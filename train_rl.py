@@ -8,21 +8,22 @@ RL 策略网络训练脚本 (V2, 解耦数据加载)
 - 初始化 RL 策略网络 (RLPolicyNet) 和强化学习环境。
 - 启动 Actor-Critic 训练过程并保存模型检查点。
 """
-import json
 import argparse
+import json
 import os
-from typing import Dict, List
-
-from torch_geometric.data import Data
-import torch
 import random
 from collections import defaultdict, deque
+from typing import Dict, List
 
+import torch
+from torch_geometric.data import Data
+
+from rgcn_rl_planner.data_loader import load_custom_kg_from_json, load_standard_dataset
+from rgcn_rl_planner.data_utils import process_custom_kg, process_standard_kg, calculate_pagerank
 # 本项目模块导入
 from rgcn_rl_planner.models import RLPolicyNet
 from rgcn_rl_planner.trainer import RLEnvironment, RLTrainer
-from rgcn_rl_planner.data_loader import load_custom_kg_from_json, load_standard_dataset
-from rgcn_rl_planner.data_utils import process_custom_kg, process_standard_kg, calculate_pagerank
+
 
 def has_path(start_node: int, end_node: int, adj: Dict[int, List[int]]) -> bool:
     """使用广度优先搜索 (BFS) 检查两个节点之间是否存在路径。"""
@@ -38,6 +39,7 @@ def has_path(start_node: int, end_node: int, adj: Dict[int, List[int]]) -> bool:
                 visited.add(neighbor)
                 q.append(neighbor)
     return False
+
 
 def main(args):
     """主训练函数 (V2)"""
@@ -61,8 +63,10 @@ def main(args):
     try:
         if args.dataset_type == 'custom':
             raw_kg = load_custom_kg_from_json(os.path.join(data_root, "kg_data.json"))
-            with open(node_map_path, 'r', encoding='utf-8') as f: entity_map = json.load(f)
-            with open(relation_map_path, 'r', encoding='utf-8') as f: relation_map = json.load(f)
+            with open(node_map_path, 'r', encoding='utf-8') as f:
+                entity_map = json.load(f)
+            with open(relation_map_path, 'r', encoding='utf-8') as f:
+                relation_map = json.load(f)
             data, entity_map, relation_map, pagerank_values = process_custom_kg(raw_kg, entity_map, relation_map)
             # 对于 custom 类型，训练环境和图是一致的
             data_for_rl_env = data
@@ -79,17 +83,17 @@ def main(args):
             all_triplets = train_triplets + valid_triplets + test_triplets
             edge_index_list = [[h, t] for h, r, t in all_triplets]
             edge_type_list = [r for h, r, t in all_triplets]
-            
+
             node_embeddings_for_data = torch.load(embedding_path, map_location=torch.device('cpu'))
 
             data_for_rl_env = Data(
-                x=node_embeddings_for_data, # 从 data 对象中获取 x
+                x=node_embeddings_for_data,  # 从 data 对象中获取 x
                 edge_index=torch.tensor(edge_index_list, dtype=torch.long).t().contiguous(),
                 edge_type=torch.tensor(edge_type_list, dtype=torch.long),
                 num_nodes=data.num_nodes
             )
             print(f"RL 环境图构建完成: {data_for_rl_env.num_edges} 条边。")
-            
+
             # 在完整的图上计算 PageRank
             pagerank_values = calculate_pagerank(data_for_rl_env)
         else:
@@ -106,14 +110,14 @@ def main(args):
         return
 
     data = data.to(device)
-    data_for_rl_env = data_for_rl_env.to(device) # 将新图也移动到设备
+    data_for_rl_env = data_for_rl_env.to(device)  # 将新图也移动到设备
     embedding_dim = data.num_features
     print(f"数据加载完成: {data.num_nodes} 个节点, 嵌入维度: {embedding_dim}。")
 
     # --- 3. 初始化模型和环境 ---
     print("--- 正在初始化 RLPolicyNet、环境和训练器 ---")
     model = RLPolicyNet(embedding_dim, args.gru_hidden_dim).to(device)
-    
+
     # **V3 修复**: 使用为环境专门构建的 `data_for_rl_env`
     env = RLEnvironment(
         data=data_for_rl_env,
@@ -151,7 +155,7 @@ def main(args):
             start, end = random.choice(basic_nodes), random.choice(task_nodes)
             if start != end and has_path(start, end, adj):
                 training_pairs.append((start, end))
-    else: # standard
+    else:  # standard
         # 使用训练集中的 (头, 尾) 作为训练对
         training_pairs = list(set([(h, t) for h, r, t in train_triplets if h != t]))
         if len(training_pairs) > args.num_training_pairs:
@@ -162,41 +166,10 @@ def main(args):
         return
     print(f"已创建 {len(training_pairs)} 个训练对。")
 
-    # ---- DEBUG START for NELL-995 ----
-    if args.dataset_name == 'NELL-995' and training_pairs:
-        print("\n--- [DEBUG] 正在对第一个 NELL-995 训练对进行预演 ---")
-        
-        first_h, first_t = training_pairs[0]
-        inv_entity_map = {v: k for k, v in entity_map.items()}
-        
-        h_name = inv_entity_map.get(first_h, "未知实体")
-        t_name = inv_entity_map.get(first_t, "未知实体")
-        
-        print(f"训练对 #1: ('{h_name}', '{t_name}') -> (ID: {first_h}, ID: {first_t})")
-        
-        # Check adjacency list in the environment
-        env_adj = env.adjacency_list
-        neighbors_with_rels = env_adj.get(first_h, [])
-        
-        print(f"节点 {first_h} ('{h_name}') 在环境图中的邻居数量: {len(neighbors_with_rels)}")
-        if neighbors_with_rels:
-            neighbor_names = [inv_entity_map.get(n_id, "未知") for n_id, rel_id in neighbors_with_rels]
-            print(f"邻居列表: {neighbor_names}")
-        
-        # Simulate the first step
-        env.reset(first_h, first_t)
-        valid_actions = env.get_valid_actions()
-        print(f"调用 env.get_valid_actions() 后，可行动作数量: {len(valid_actions)}")
-        
-        if not valid_actions:
-            print("!!! [DEBUG] 警告: get_valid_actions() 返回空列表，代理无法行动! 这是导致指标为零的直接原因。!!!")
-        
-        print("--- [DEBUG] 预演结束 ---\n")
-    # ---- DEBUG END ----
-
     # --- 5. 开始训练 ---
     trainer.train(training_pairs, args.num_episodes, args.gradient_accumulation_steps,
                   args.print_every, args.save_every, model_dir)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="RL 路径规划模型训练脚本 (V2)")
@@ -219,7 +192,8 @@ if __name__ == "__main__":
     parser.add_argument('--entropy_coeff', type=float, default=0.05, help='熵损失系数，鼓励探索')
     parser.add_argument('--max_path_length', type=int, default=10, help='智能体探索的最大路径长度')
     parser.add_argument('--num_episodes', type=int, default=40000, help='训练的总 episodes 数量')
-    parser.add_argument('--num_training_pairs', type=int, default=1000, help='用于训练的节点对数量 (对于custom是目标数，对于standard是最大采样数)')
+    parser.add_argument('--num_training_pairs', type=int, default=1000,
+                        help='用于训练的节点对数量 (对于custom是目标数，对于standard是最大采样数)')
     parser.add_argument('--gradient_accumulation_steps', type=int, default=32, help='梯度累积的步数')
 
     # 学习率调度器参数
