@@ -53,8 +53,6 @@ uv run train_rl.py \
     --learning_rate 0.0003 \
     --gradient_accumulation_steps 32 \
     --action_pruning_k 20 \
-    --hierarchical_relation_names "_hypernym" \
-    --hierarchical_reward_bonus 0.1 \
     $USE_CUDA_FLAG
 
 echo "--- [TRAIN] RL 训练完成: $dataset ---"

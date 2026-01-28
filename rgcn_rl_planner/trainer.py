@@ -51,8 +51,6 @@ class RLEnvironment:
                  action_pruning_k: Optional[int] = None,  # 新增: Top-K 动作剪枝的 K值
                  low_freq_relations: Optional[set] = None,  # 新增: 低频关系的 ID 集合
                  low_freq_penalty: float = 0.0,  # 新增: 对低频关系的惩罚值
-                 hierarchical_relations: Optional[set] = None,  # 新增: 层级关系的 ID 集合
-                 hierarchical_reward_bonus: float = 0.0,  # 新增: 对层级关系的奖励值
                  ):
         self.data = data
         self.node_map = node_map
@@ -73,8 +71,6 @@ class RLEnvironment:
         self.action_pruning_k = action_pruning_k
         self.low_freq_relations = low_freq_relations if low_freq_relations is not None else set()
         self.low_freq_penalty = low_freq_penalty
-        self.hierarchical_relations = hierarchical_relations if hierarchical_relations is not None else set()
-        self.hierarchical_reward_bonus = hierarchical_reward_bonus
 
         self.adjacency_list = self._build_adjacency_list()
 
@@ -187,10 +183,6 @@ class RLEnvironment:
         # 3. 新增: 低频关系惩罚
         if relation_id in self.low_freq_relations:
             reward -= self.low_freq_penalty
-
-        # 4. 新增: 层级一致性奖励 (WN18RR specific)
-        if relation_id in self.hierarchical_relations:
-            reward += self.hierarchical_reward_bonus
 
         # 5. 终点奖励 (R_terminal)
         if self.current_node == self.target_node:

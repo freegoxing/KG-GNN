@@ -114,19 +114,6 @@ def main(args):
                     low_freq_relations.add(r_id)
             print(f"--- 已识别 {len(low_freq_relations)} 个低频关系 ---")
 
-        # --- 2.2. [WN18RR specific] 识别层级关系 ---
-        hierarchical_relations = set()
-        if args.dataset_type == 'standard' and args.hierarchical_relation_names:
-            print(f"--- 正在识别层级关系: {args.hierarchical_relation_names} ---")
-            # 反转 relation_map 以便通过名称查找 ID
-            inv_relation_map = {name: id for id, name in relation_map.items()}
-            relation_names_to_find = args.hierarchical_relation_names.split(',')
-            for name in relation_names_to_find:
-                if name in inv_relation_map:
-                    hierarchical_relations.add(inv_relation_map[name])
-                else:
-                    print(f"警告: 层级关系 '{name}' 在 relation_map 中未找到。")
-            print(f"--- 已识别 {len(hierarchical_relations)} 个层级关系 ---")
 
         node_embeddings = torch.load(embedding_path, map_location=device)
         # 确保两个 data 对象都有嵌入
@@ -163,8 +150,6 @@ def main(args):
         action_pruning_k=args.action_pruning_k,  # 新增: 传递剪枝参数
         low_freq_relations=low_freq_relations,  # 新增: 传递低频关系ID
         low_freq_penalty=args.low_freq_penalty,  # 新增: 传递低频关系惩罚值
-        hierarchical_relations=hierarchical_relations,  # 新增: 传递层级关系ID
-        hierarchical_reward_bonus=args.hierarchical_reward_bonus  # 新增: 传递层级关系奖励值
     )
     trainer = RLTrainer(env, model, node_embeddings, device, args.learning_rate, args.discount_factor,
                         args.entropy_coeff, args.use_scheduler, args.scheduler_step_size, args.scheduler_gamma)
@@ -268,10 +253,6 @@ if __name__ == "__main__":
                         help='[FB15k-237] 低频关系的绝对数量阈值 (默认: 0, 不启用)')
     parser.add_argument('--low_freq_penalty', type=float, default=0.0,
                         help='[FB15k-237] 应用于低频关系的奖励惩罚 (默认: 0.0)')
-    parser.add_argument('--hierarchical_relation_names', type=str, default=None,
-                        help='[WN18RR] 层级关系名称的逗号分隔列表 (例如: _hypernym)')
-    parser.add_argument('--hierarchical_reward_bonus', type=float, default=0.0,
-                        help='[WN18RR] 应用于层级关系的奖励加成 (默认: 0.0)')
 
     # 其他
     parser.add_argument('--seed', type=int, default=42, help='随机种子')

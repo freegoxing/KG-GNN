@@ -69,20 +69,11 @@ datasets:
         length_penalty: false
 
   WN18RR:
-    note: >
-      Hierarchical lexical KG.
-      Encourage consistent traversal along hierarchy
-      to avoid oscillatory policies.
 
     model:
       embedding_dim: 64
 
     policy:
-      hierarchical_reward:
-        enabled: true
-        relation_suffix: "_hypernym"
-        bonus: 0.1
-
       variance_reduction:
         value_baseline: true
         moving_average: true
