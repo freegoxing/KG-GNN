@@ -23,7 +23,7 @@ checkpoints/
 # =========================
 # Experiment Outputs
 # =========================
-reports/
+#reports/
 
 # =========================
 # Data

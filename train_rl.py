@@ -99,6 +99,35 @@ def main(args):
         else:
             raise ValueError("`dataset_type` 必须是 'custom' 或 'standard'")
 
+        # --- 2.1. [FB15k-237 specific] 识别低频关系 ---
+        low_freq_relations = set()
+        if args.dataset_type == 'standard' and args.low_freq_relation_threshold > 0:
+            print(f"--- 正在识别频率低于 {args.low_freq_relation_threshold} 的低频关系 ---")
+            relation_counts = defaultdict(int)
+            for _, r, _ in train_triplets:
+                relation_counts[r] += 1
+
+            total_relations = len(relation_map)
+            # 阈值可以是绝对数量或百分比，这里使用绝对数量
+            for r_id, count in relation_counts.items():
+                if count < args.low_freq_relation_threshold:
+                    low_freq_relations.add(r_id)
+            print(f"--- 已识别 {len(low_freq_relations)} 个低频关系 ---")
+
+        # --- 2.2. [WN18RR specific] 识别层级关系 ---
+        hierarchical_relations = set()
+        if args.dataset_type == 'standard' and args.hierarchical_relation_names:
+            print(f"--- 正在识别层级关系: {args.hierarchical_relation_names} ---")
+            # 反转 relation_map 以便通过名称查找 ID
+            inv_relation_map = {name: id for id, name in relation_map.items()}
+            relation_names_to_find = args.hierarchical_relation_names.split(',')
+            for name in relation_names_to_find:
+                if name in inv_relation_map:
+                    hierarchical_relations.add(inv_relation_map[name])
+                else:
+                    print(f"警告: 层级关系 '{name}' 在 relation_map 中未找到。")
+            print(f"--- 已识别 {len(hierarchical_relations)} 个层级关系 ---")
+
         node_embeddings = torch.load(embedding_path, map_location=device)
         # 确保两个 data 对象都有嵌入
         data.x = node_embeddings
@@ -130,7 +159,12 @@ def main(args):
         reward_alpha=args.reward_alpha,
         reward_eta=args.reward_eta,
         length_reward_n=args.length_reward_n,
-        length_reward_sigma=args.length_reward_sigma
+        length_reward_sigma=args.length_reward_sigma,
+        action_pruning_k=args.action_pruning_k,  # 新增: 传递剪枝参数
+        low_freq_relations=low_freq_relations,  # 新增: 传递低频关系ID
+        low_freq_penalty=args.low_freq_penalty,  # 新增: 传递低频关系惩罚值
+        hierarchical_relations=hierarchical_relations,  # 新增: 传递层级关系ID
+        hierarchical_reward_bonus=args.hierarchical_reward_bonus  # 新增: 传递层级关系奖励值
     )
     trainer = RLTrainer(env, model, node_embeddings, device, args.learning_rate, args.discount_factor,
                         args.entropy_coeff, args.use_scheduler, args.scheduler_step_size, args.scheduler_gamma)
@@ -138,6 +172,8 @@ def main(args):
     # --- 4. 创建训练对 ---
     print("--- 正在创建训练对 ---")
     training_pairs = []
+    validation_pairs = []  # 新增: 初始化验证集
+
     if args.dataset_type == 'custom':
         adj = defaultdict(list)
         for i in range(data.edge_index.size(1)):
@@ -161,14 +197,23 @@ def main(args):
         if len(training_pairs) > args.num_training_pairs:
             training_pairs = random.sample(training_pairs, args.num_training_pairs)
 
+        # 新增: 使用验证集中的 (头, 尾) 作为验证对
+        if args.use_early_stopping:
+            validation_pairs = list(set([(h, t) for h, r, t in valid_triplets if h != t]))
+            if len(validation_pairs) > args.num_validation_pairs:
+                validation_pairs = random.sample(validation_pairs, args.num_validation_pairs)
+
     if not training_pairs:
         print("错误：未能创建任何训练对。")
         return
     print(f"已创建 {len(training_pairs)} 个训练对。")
+    if validation_pairs:
+        print(f"已创建 {len(validation_pairs)} 个验证对。")
 
     # --- 5. 开始训练 ---
     trainer.train(training_pairs, args.num_episodes, args.gradient_accumulation_steps,
-                  args.print_every, args.save_every, model_dir)
+                  args.print_every, args.save_every, model_dir,
+                  validation_pairs, args.use_early_stopping, args.early_stopping_patience)
 
 
 if __name__ == "__main__":
@@ -191,6 +236,8 @@ if __name__ == "__main__":
     parser.add_argument('--discount_factor', type=float, default=0.99, help='奖励折扣因子 (gamma)')
     parser.add_argument('--entropy_coeff', type=float, default=0.05, help='熵损失系数，鼓励探索')
     parser.add_argument('--max_path_length', type=int, default=10, help='智能体探索的最大路径长度')
+    parser.add_argument('--action_pruning_k', type=int, default=None,
+                        help='Top-K 动作剪枝, 限制每个步骤的动作空间大小 (默认: None, 不启用)')
     parser.add_argument('--num_episodes', type=int, default=40000, help='训练的总 episodes 数量')
     parser.add_argument('--num_training_pairs', type=int, default=1000,
                         help='用于训练的节点对数量 (对于custom是目标数，对于standard是最大采样数)')
@@ -201,12 +248,30 @@ if __name__ == "__main__":
     parser.add_argument('--scheduler_step_size', type=int, default=1000, help='学习率调度器的步长 (episodes)')
     parser.add_argument('--scheduler_gamma', type=float, default=0.95, help='学习率调度器的衰减因子')
 
+    # 早停参数 (NELL-995 specific)
+    parser.add_argument('--use_early_stopping', action='store_true',
+                        help='[NELL-995] 启用基于验证集 MRR 的早停机制')
+    parser.add_argument('--early_stopping_patience', type=int, default=3,
+                        help='[NELL-995] 早停的 patience (连续多少次验证无提升后停止)')
+    parser.add_argument('--num_validation_pairs', type=int, default=500,
+                        help='[NELL-995] 用于验证的节点对数量')
+
     # 奖励函数参数
     parser.add_argument('--optimal_path_length', type=int, default=None, help='钟形长度奖励的中心 (最佳路径长度)')
     parser.add_argument('--reward_alpha', type=float, default=0.1, help='PageRank 知识增益奖励权重')
     parser.add_argument('--reward_eta', type=float, default=1.0, help='势能整形奖励的权重')
     parser.add_argument('--length_reward_n', type=float, default=2.0, help='钟形长度奖励的峰值大小')
     parser.add_argument('--length_reward_sigma', type=float, default=3.0, help='钟形长度奖励的宽度 (标准差)')
+
+    # 数据集特定改进参数
+    parser.add_argument('--low_freq_relation_threshold', type=int, default=0,
+                        help='[FB15k-237] 低频关系的绝对数量阈值 (默认: 0, 不启用)')
+    parser.add_argument('--low_freq_penalty', type=float, default=0.0,
+                        help='[FB15k-237] 应用于低频关系的奖励惩罚 (默认: 0.0)')
+    parser.add_argument('--hierarchical_relation_names', type=str, default=None,
+                        help='[WN18RR] 层级关系名称的逗号分隔列表 (例如: _hypernym)')
+    parser.add_argument('--hierarchical_reward_bonus', type=float, default=0.0,
+                        help='[WN18RR] 应用于层级关系的奖励加成 (默认: 0.0)')
 
     # 其他
     parser.add_argument('--seed', type=int, default=42, help='随机种子')

@@ -46,7 +46,6 @@ project/
 ├──  checkpoints               # 模型保存文件夹
 ├──  data                      # 数据保存文件夹
 ├──  evaluation.py             # 模型测试代码
-├──  knowledge_planner.py      # 模型使用代码
 ├──  reports                   # 测试图表，指标保存文件夹
 ├──  rgcn_rl_planner           # 模型定义文件夹
 │  ├──  data_loader.py         # 数据加载文件

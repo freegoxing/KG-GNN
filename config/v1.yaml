@@ -1,0 +1,39 @@
+# ==================================================
+# Experiment Version: v1
+# Stage: initial baseline
+# Policy: shared parameters across all datasets
+# Datasets: FB15k-237 / WN18RR / NELL-995
+#
+# Note:
+#   v1 uses exactly the same hyperparameters
+#   for all datasets (no dataset-specific tuning).
+# ==================================================
+
+version: v1
+
+global:
+  use_cuda: true
+
+  training:
+    rgcn:
+      epochs: 4000
+      hidden_channels: 32
+      out_channels: 16
+      learning_rate: 0.005
+      print_every: 100
+
+    rl:
+      num_episodes: 80000
+      gru_hidden_dim: 16
+      learning_rate: 0.0003
+      gradient_accumulation_steps: 32
+      save_every: 1000
+
+  evaluation:
+    save_plot: true
+    plot_filename_base: evaluation_summary_v1
+
+datasets:
+  FB15k-237: {}
+  WN18RR: {}
+  NELL-995: {}

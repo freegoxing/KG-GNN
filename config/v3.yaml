@@ -1,0 +1,103 @@
+# ==================================================
+# Experiment Version: v3
+# Focus:
+#   - RL policy stability and variance reduction
+#   - dataset-specific inductive bias
+#   - improved convergence under larger model capacity
+#
+# Key ideas:
+#   - action space pruning
+#   - reward shaping / penalty
+#   - variance reduction (baseline / early stopping)
+# ==================================================
+
+version: v3
+
+global:
+  use_cuda: true
+
+  graph_backend:
+    type: cugraph
+    dataframe: cudf
+
+  model:
+    rgcn:
+      hidden_channels: 32
+
+    policy:
+      action_pruning:
+        enabled: true
+        method: topk_neighbor
+        k: 20
+
+  training:
+    rgcn:
+      epochs: 4000
+      learning_rate: 0.005
+      print_every: 100
+
+    rl:
+      num_episodes: 80000
+      learning_rate: 0.0003
+      gradient_accumulation_steps: 32
+      save_every: 1000
+
+  evaluation:
+    save_plot: true
+    plot_filename_base: evaluation_summary_v3
+
+# --------------------------
+# Dataset-specific strategies
+# --------------------------
+datasets:
+
+  FB15k-237:
+    note: >
+      Medium-scale KG with diverse relations.
+      Focus on reducing action space noise and
+      stabilizing policy learning.
+
+    model:
+      embedding_dim: 64   # RGCN out + GRU hidden
+
+    policy:
+      relation_filtering:
+        low_freq_threshold: 10
+        low_freq_penalty: 0.1
+
+      reward_shaping:
+        length_penalty: false
+
+  WN18RR:
+    note: >
+      Hierarchical lexical KG.
+      Encourage consistent traversal along hierarchy
+      to avoid oscillatory policies.
+
+    model:
+      embedding_dim: 64
+
+    policy:
+      hierarchical_reward:
+        enabled: true
+        relation_suffix: "_hypernym"
+        bonus: 0.1
+
+      variance_reduction:
+        value_baseline: true
+        moving_average: true
+
+  NELL-995:
+    note: >
+      Sparse and noisy KG.
+      Overfitting observed with large hidden dimensions.
+
+    model:
+      embedding_dim: 16
+
+    policy:
+
+      early_stopping:
+        enabled: true
+        patience: 1000
+        num_validation_pairs: 500

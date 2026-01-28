@@ -1,0 +1,65 @@
+# ==================================================
+# Experiment Version: v2
+# Change:
+#   - dataset-specific model capacity
+#   - enable cuGraph + cuDF backend
+#
+# Note:
+#   RGCN out_channels == RL GRU hidden_dim == EVALUATION  GRU hidden_dim
+#   for each dataset in v2
+# ==================================================
+version: v2
+
+global:
+  use_cuda: true
+
+  graph_backend:
+    type: cugraph
+    dataframe: cudf
+
+  training:
+    rgcn:
+      epochs: 4000
+      hidden_channels: 32
+      learning_rate: 0.005
+      print_every: 100
+
+    rl:
+      num_episodes: 80000
+      learning_rate: 0.0003
+      gradient_accumulation_steps: 32
+      save_every: 1000
+
+  evaluation:
+    save_plot: true
+    plot_filename_base: evaluation_summary_v2
+
+datasets:
+  FB15k-237:
+    training:
+      rgcn:
+        out_channels: 64
+      rl:
+        gru_hidden_dim: 64
+      evaluation:
+        gru_hidden_dim: 64
+
+
+  WN18RR:
+    training:
+      rgcn:
+        out_channels: 64
+      rl:
+        gru_hidden_dim: 64
+      evaluation:
+        gru_hidden_dim: 64
+
+
+  NELL-995:
+    training:
+      rgcn:
+        out_channels: 16
+      rl:
+        gru_hidden_dim: 64
+      evaluation:
+        gru_hidden_dim: 64

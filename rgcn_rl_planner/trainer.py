@@ -40,14 +40,19 @@ class RLEnvironment:
                  data: Data,
                  node_map: NodeMap,
                  relation_map: RelationMap,
-                 node_embeddings: torch.Tensor,  # 新增：传入节点嵌入
+                 node_embeddings: torch.Tensor,  # 传入节点嵌入
                  max_path_length: int,
                  pagerank_values: Dict[int, float],
-                 optimal_path_length: Optional[int] = None,  # 新增: 鼓励探索的最佳路径长度
+                 optimal_path_length: Optional[int] = None,  # 鼓励探索的最佳路径长度
                  reward_alpha: float = 0.1,  # PageRank 奖励权重
-                 reward_eta: float = 1.0,  # 新增：势能整形奖励的权重
-                 length_reward_n: float = 2.0,  # 新增: 钟形长度奖励的峰值
-                 length_reward_sigma: float = 3.0,  # 新增: 钟形长度奖励的宽度 (标准差)
+                 reward_eta: float = 1.0,  # 势能整形奖励的权重
+                 length_reward_n: float = 2.0,  # 钟形长度奖励的峰值
+                 length_reward_sigma: float = 3.0,  # 钟形长度奖励的宽度 (标准差)
+                 action_pruning_k: Optional[int] = None,  # 新增: Top-K 动作剪枝的 K值
+                 low_freq_relations: Optional[set] = None,  # 新增: 低频关系的 ID 集合
+                 low_freq_penalty: float = 0.0,  # 新增: 对低频关系的惩罚值
+                 hierarchical_relations: Optional[set] = None,  # 新增: 层级关系的 ID 集合
+                 hierarchical_reward_bonus: float = 0.0,  # 新增: 对层级关系的奖励值
                  ):
         self.data = data
         self.node_map = node_map
@@ -65,6 +70,11 @@ class RLEnvironment:
         self.REWARD_ETA = reward_eta  # 势能奖励权重
         self.LENGTH_REWARD_N = length_reward_n
         self.LENGTH_REWARD_SIGMA = length_reward_sigma
+        self.action_pruning_k = action_pruning_k
+        self.low_freq_relations = low_freq_relations if low_freq_relations is not None else set()
+        self.low_freq_penalty = low_freq_penalty
+        self.hierarchical_relations = hierarchical_relations if hierarchical_relations is not None else set()
+        self.hierarchical_reward_bonus = hierarchical_reward_bonus
 
         self.adjacency_list = self._build_adjacency_list()
 
@@ -105,10 +115,34 @@ class RLEnvironment:
         return self.current_node
 
     def get_valid_actions(self) -> List[int]:
-        """获取合法动作"""
+        """
+        获取合法动作。
+        如果配置了 action_pruning_k，则执行 Top-K 剪枝。
+        """
         neighbors_with_rels = self.adjacency_list.get(self.current_node, [])
-        # 默认行为：返回所有未访问过的邻居
-        return [n for n, rel in neighbors_with_rels if n not in self.visited]
+        unvisited_neighbors = [n for n, rel in neighbors_with_rels if n not in self.visited]
+
+        # 如果没有设置K值，或者没有有效邻居，则返回所有未访问过的邻居
+        if self.action_pruning_k is None or not unvisited_neighbors:
+            return unvisited_neighbors
+
+        # --- Top-K 动作剪枝 ---
+        # 1. 计算所有有效邻居与目标节点的余弦相似度
+        target_emb = self.node_embeddings[self.target_node].unsqueeze(0)
+        neighbor_embs = self.node_embeddings[unvisited_neighbors]
+        similarities = F.cosine_similarity(neighbor_embs, target_emb)
+
+        # 2. 选择相似度最高的 Top-K 个邻居
+        num_to_keep = min(self.action_pruning_k, len(unvisited_neighbors))
+        if num_to_keep > 0:
+            # `torch.topk` 返回 (values, indices)
+            _, top_k_indices = torch.topk(similarities, k=num_to_keep)
+            
+            # 从原始列表中根据索引选出节点
+            top_k_neighbors = [unvisited_neighbors[i] for i in top_k_indices]
+            return top_k_neighbors
+        else:
+            return []
 
     def step(self, action: int) -> Tuple[int, float, bool, Dict]:
         """执行一步动作"""
@@ -150,12 +184,20 @@ class RLEnvironment:
         reward += self.REWARD_ETA * r_shaping
         self.previous_potential = current_potential  # 更新势能
 
-        # 3. 终点奖励 (R_terminal)
+        # 3. 新增: 低频关系惩罚
+        if relation_id in self.low_freq_relations:
+            reward -= self.low_freq_penalty
+
+        # 4. 新增: 层级一致性奖励 (WN18RR specific)
+        if relation_id in self.hierarchical_relations:
+            reward += self.hierarchical_reward_bonus
+
+        # 5. 终点奖励 (R_terminal)
         if self.current_node == self.target_node:
-            # 3.1 基础成功奖励
+            # 5.1 基础成功奖励
             reward += 10.0
 
-            # 3.2 新增：钟形路径长度奖励 (R_length)
+            # 5.2 新增：钟形路径长度奖励 (R_length)
             # 仅在成功到达终点时，根据路径长度与“最佳长度”的接近程度给予奖励
             path_length_diff = self.step_count - self.optimal_path_length
             r_length = self.LENGTH_REWARD_N * np.exp(-(path_length_diff ** 2) / (2 * self.LENGTH_REWARD_SIGMA ** 2))
@@ -273,26 +315,94 @@ class RLTrainer:
         success = self.env.current_node == self.env.target_node
         return sum(rewards), len(self.env.path) - 1, success, total_loss
 
+    def evaluate_episode(self, start_node: int, target_node: int) -> Tuple[bool, int]:
+        """
+        在评估模式下运行单个 episode (使用贪心策略)。
+        返回: (是否成功, 路径长度)
+        """
+        self.model.eval()  # 设置为评估模式
+        with torch.no_grad():
+            state = self.env.reset(start_node, target_node)
+            path_memory = torch.zeros(1, self.model.gru_hidden_dim, device=self.device)
+
+            for _ in range(self.env.max_path_length):
+                valid_actions = self.env.get_valid_actions()
+                if not valid_actions:
+                    break  # 死胡同
+
+                current_emb = self.node_embeddings[state].unsqueeze(0)
+                target_emb = self.node_embeddings[target_node]
+                neighbor_embs = self.node_embeddings[valid_actions]
+
+                action_dist, _, path_memory = self.model(
+                    current_emb, target_emb, neighbor_embs, path_memory
+                )
+
+                if action_dist is None:
+                    break
+
+                # 贪心选择：选择概率最高的动作
+                action_idx = torch.argmax(action_dist.probs)
+                action = valid_actions[action_idx.item()]
+
+                state, _, done, _ = self.env.step(action)
+                if done:
+                    break
+        
+        success = self.env.current_node == self.env.target_node
+        path_len = len(self.env.path) - 1
+        return success, path_len
+
+    def run_evaluation(self, validation_pairs: List[Tuple[int, int]]) -> float:
+        """
+        在验证集上运行评估并计算 MRR。
+        简单定义：成功路径的 MRR = 1 / 路径长度。失败为 0。
+        """
+        if not validation_pairs:
+            return 0.0
+        
+        total_reciprocal_rank = 0.0
+        for start_node, target_node in validation_pairs:
+            success, path_len = self.evaluate_episode(start_node, target_node)
+            if success and path_len > 0:
+                total_reciprocal_rank += 1.0 / path_len
+        
+        mrr = total_reciprocal_rank / len(validation_pairs)
+        return mrr
+
     def train(self,
               training_pairs: List[Tuple[int, int]],
               num_episodes: int,
-              gradient_accumulation_steps: int = 16,  # 新增：梯度累积步数
+              gradient_accumulation_steps: int = 16,
               print_every: int = 100,
               save_every: int = 200,
-              model_save_dir: str = './checkpoints/'):
-        """执行完整的训练循环, 并使用梯度累积。"""
+              model_save_dir: str = './checkpoints/',
+              validation_pairs: Optional[List[Tuple[int, int]]] = None,
+              use_early_stopping: bool = False,
+              early_stopping_patience: int = 3):
+        """执行完整的训练循环, 并使用梯度累积、早停和验证。"""
         logging.info(f"--- 开始 RL 策略训练，共 {num_episodes} episodes on {self.device} ---")
         logging.info(f"--- 梯度将每 {gradient_accumulation_steps} episodes 累积更新一次 ---")
 
+        if use_early_stopping:
+            if not validation_pairs:
+                logging.warning("警告: 开启了早停但未提供验证集, 早停将不会生效。")
+                use_early_stopping = False
+            else:
+                logging.info(f"--- 早停机制已启用, Patience: {early_stopping_patience}, "
+                             f"每 {save_every} episodes 验证一次 ---")
+
         success_count = 0
         total_rewards_list, path_lengths_list = [], []
-        self.model.train()
-        self.optimizer.zero_grad()  # 在训练开始前清零梯度
+        best_mrr = -1.0
+        patience_counter = 0
+
+        self.optimizer.zero_grad()
 
         for episode in range(num_episodes):
+            self.model.train()  # 确保在训练模式
             start_node, target_node = training_pairs[episode % len(training_pairs)]
 
-            # 运行 episode 并获取损失
             reward, path_len, success, loss = self.train_episode(start_node, target_node)
 
             if success:
@@ -300,24 +410,18 @@ class RLTrainer:
             total_rewards_list.append(reward)
             path_lengths_list.append(path_len)
 
-            # 如果 episode 产出了有效的损失，则进行累积
             if loss is not None:
-                # 标准化损失
                 normalized_loss = loss / gradient_accumulation_steps
-                # 反向传播以累积梯度
                 normalized_loss.backward()
 
-            # --- 在累积足够多的梯度后，执行模型更新 ---
             if (episode + 1) % gradient_accumulation_steps == 0:
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                 self.optimizer.step()
-                self.optimizer.zero_grad()  # 更新后清零梯度，为下一批次做准备
-                # 如果调度器存在，则更新学习率
+                self.optimizer.zero_grad()
                 if self.scheduler:
                     self.scheduler.step()
 
             if (episode + 1) % print_every == 0:
-                # 确保 print_every 是 accumulation steps 的倍数，以获取有意义的日志
                 log_window = min(print_every, len(total_rewards_list))
                 avg_reward = np.mean(total_rewards_list[-log_window:])
                 avg_length = np.mean(path_lengths_list[-log_window:])
@@ -328,11 +432,34 @@ class RLTrainer:
                              f"Success Rate: {success_rate:.2%}")
                 success_count = 0
 
+            # --- 验证、早停与保存逻辑 ---
             if (episode + 1) % save_every == 0:
+                # 1. 无条件保存周期性检查点
                 os.makedirs(model_save_dir, exist_ok=True)
                 checkpoint_filename = f"rl_policy_net_episode_{episode + 1}.pt"
                 checkpoint_path = os.path.join(model_save_dir, checkpoint_filename)
                 torch.save(self.model.state_dict(), checkpoint_path)
                 logging.info(f"--- 模型检查点已保存至 {checkpoint_path} ---")
 
+                # 2. 如果启用早停，则执行验证
+                if use_early_stopping and validation_pairs:
+                    logging.info(f"--- Episode {episode + 1}: 开始在验证集上进行评估 ---")
+                    current_mrr = self.run_evaluation(validation_pairs)
+                    logging.info(f"--- 验证 MRR: {current_mrr:.6f} | 历史最佳 MRR: {best_mrr:.6f} ---")
+
+                    # 仅更新计数器和最佳分数，不改变保存行为
+                    if current_mrr > best_mrr:
+                        best_mrr = current_mrr
+                        patience_counter = 0
+                        logging.info(f"--- 新的最佳 MRR！Patience 重置为 0。 ---")
+                    else:
+                        patience_counter += 1
+                        logging.info(f"--- MRR 未提升。Patience: {patience_counter}/{early_stopping_patience} ---")
+
+                    if patience_counter >= early_stopping_patience:
+                        logging.info(f"--- 早停触发！连续 {early_stopping_patience} 次验证性能未提升。训练终止。 ---")
+                        break  # 提前结束训练
+
         logging.info("\n--- 训练完成 ---")
+        if use_early_stopping:
+            logging.info(f"--- 最终最佳验证 MRR: {best_mrr:.6f} ---")

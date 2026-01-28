@@ -13,7 +13,7 @@ DATASET_TYPE="standard"
 # 隐藏参数
 HIDDEN_DIM=16
 # 图表名称
-FILE_NAME="evaluation_summary_v2"
+FILE_NAME="evaluation_summary_v3"
 
 echo "============================================================"
 echo ">>>>> [CLEAN] 清理 $dataset 的 checkpoints <<<<<"
@@ -52,6 +52,10 @@ uv run train_rl.py \
     --save_every 1000 \
     --learning_rate 0.0003 \
     --gradient_accumulation_steps 32 \
+    --action_pruning_k 20 \
+    --use_early_stopping \
+    --early_stopping_patience 1000 \
+    --num_validation_pairs 500 \
     $USE_CUDA_FLAG
 
 echo "--- [TRAIN] RL 训练完成: $dataset ---"
