@@ -9,8 +9,10 @@ RGCN 编码器预训练脚本 (V3, OOM 优化版)
 """
 import argparse
 import os
+import random
 from typing import Optional
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
@@ -23,6 +25,18 @@ from torch_geometric.utils import negative_sampling
 from rgcn_rl_planner.data_loader import load_custom_kg_from_json, load_standard_dataset
 from rgcn_rl_planner.data_utils import process_custom_kg, process_standard_kg, save_mappings
 from rgcn_rl_planner.models import RGCNEncoder
+
+def set_seed(seed: int):
+    """设置所有随机种子以确保可复现性。"""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)  # for multi-GPU
+    # 确保cudnn的确定性，但可能会牺牲性能
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def train(encoder: RGCNEncoder,
@@ -79,12 +93,10 @@ def train(encoder: RGCNEncoder,
 def main(args):
     """主训练函数 (V4 - 集成 OOM 优化)"""
     # --- 1. 环境和路径设置 ---
+    set_seed(args.seed)  # 设置所有随机种子
     use_cuda = torch.cuda.is_available() and args.use_cuda
     device = torch.device('cuda' if use_cuda else 'cpu')
     print(f"--- 使用设备: {device} ---")
-    torch.manual_seed(args.seed)
-    if device.type == 'cuda':
-        torch.cuda.manual_seed(args.seed)
 
     # OOM 优化 2: 仅在 CUDA 环境下启用 AMP
     use_amp = use_cuda and args.use_amp
