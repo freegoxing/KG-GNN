@@ -45,19 +45,6 @@ from rgcn_rl_planner.data_loader import load_custom_kg_from_json, load_standard_
 from rgcn_rl_planner.data_utils import process_custom_kg, process_standard_kg, calculate_pagerank
 
 
-def set_seed(seed: int):
-    """设置所有随机种子以确保可复现性。"""
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)  # for multi-GPU
-    # 确保cudnn的确定性，但可能会牺牲性能
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
-
 # --- 核心函数 (大部分保持不变) ---
 
 def has_path(start_node: int, end_node: int, adj: Dict[int, List[int]]) -> bool:
@@ -308,7 +295,6 @@ def evaluate_model_checkpoint(
 def main(args):
     """主评估函数 (V2)"""
     # --- 0. 环境和路径设置 ---
-    set_seed(args.seed)  # 设置所有随机种子
     global USE_CUML
     if not args.use_cuda:
         USE_CUML = False
@@ -442,7 +428,7 @@ def main(args):
         reward_alpha=args.reward_alpha,
         reward_eta=args.reward_eta
     )
-    kf = KFold(n_splits=args.k_folds, shuffle=True, random_state=args.seed)
+    kf = KFold(n_splits=args.k_folds, shuffle=True, random_state=42)
 
     # --- 5. 查找并排序模型检查点 ---
     model_files = glob.glob(os.path.join(model_dir, args.model_name_pattern))
@@ -543,7 +529,6 @@ if __name__ == "__main__":
     # 可视化参数
     parser.add_argument('--save_plot', action='store_true', help='是否保存评估指标图表')
     parser.add_argument('--plot_filename_base', type=str, default='evaluation_summary_v1', help='保存图表的基础文件名')
-    parser.add_argument('--seed', type=int, default=42, help='随机种子')
 
     args = parser.parse_args()
     main(args)
