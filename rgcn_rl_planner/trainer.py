@@ -241,7 +241,9 @@ class RLTrainer:
                  entropy_coeff: float = 0.01,
                  use_scheduler: bool = False,
                  scheduler_step_size: int = 5000,
-                 scheduler_gamma: float = 0.95):
+                 scheduler_gamma: float = 0.95,
+                 use_advantage_moving_average: bool = False,  # 新增: 是否使用优势的移动平均进行标准化
+                 advantage_ema_alpha: float = 0.01):  # 新增: 优势移动平均的平滑系数
         self.env = environment
         self.model = model
         self.node_embeddings = node_embeddings
@@ -254,6 +256,13 @@ class RLTrainer:
         if use_scheduler:
             self.scheduler = StepLR(self.optimizer, step_size=scheduler_step_size, gamma=scheduler_gamma)
             logging.info(f"已启用学习率调度器: StepLR(step_size={scheduler_step_size}, gamma={scheduler_gamma})")
+
+        self.use_advantage_moving_average = use_advantage_moving_average
+        self.advantage_ema_alpha = advantage_ema_alpha
+        if self.use_advantage_moving_average:
+            self._advantage_mean: float = 0.0
+            self._advantage_std: float = 1.0  # 初始化为1.0以避免除以零
+            logging.info(f"已启用优势移动平均标准化，EMA Alpha: {advantage_ema_alpha}")
 
         logging.info(f"RLTrainer initialized with device: {self.device}")
 
@@ -315,8 +324,24 @@ class RLTrainer:
         entropies_tensor = torch.stack(entropies)
 
         advantages = returns - values_tensor.detach()
+
+        # --- 新增: 优势的移动平均标准化 ---
         if advantages.numel() > 1:
-            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+            if self.use_advantage_moving_average:
+                current_advantage_mean = advantages.mean().item()
+                current_advantage_std = advantages.std().item()
+
+                # 更新移动平均
+                self._advantage_mean = (1 - self.advantage_ema_alpha) * self._advantage_mean + \
+                                    self.advantage_ema_alpha * current_advantage_mean
+                self._advantage_std = (1 - self.advantage_ema_alpha) * self._advantage_std + \
+                                    self.advantage_ema_alpha * current_advantage_std
+
+                # 使用移动平均值进行标准化
+                advantages = (advantages - self._advantage_mean) / (self._advantage_std + 1e-8)
+            else:
+                # 原始的基于当前 episode 的标准化
+                advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
         policy_loss = -(log_probs_tensor * advantages).mean()
         value_loss = F.mse_loss(values_tensor, returns)

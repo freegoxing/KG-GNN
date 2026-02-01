@@ -50,6 +50,11 @@ uv run train_rl.py \
     --save_every 1000 \
     --learning_rate 0.0003 \
     --gradient_accumulation_steps 32 \
+    --reward_clipping_value 0.3 \
+    --reward_ema_alpha 0.1 \
+    --pagerank_exploration_steps 3 \
+    --use_advantage_moving_average \
+    --advantage_ema_alpha 0.01 \
     $USE_CUDA_FLAG
 
 echo "--- [TRAIN] RL 训练完成: $dataset ---"

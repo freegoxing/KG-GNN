@@ -156,7 +156,8 @@ def main(args):
         pagerank_exploration_steps=args.pagerank_exploration_steps,
     )
     trainer = RLTrainer(env, model, node_embeddings, device, args.learning_rate, args.discount_factor,
-                        args.entropy_coeff, args.use_scheduler, args.scheduler_step_size, args.scheduler_gamma)
+                        args.entropy_coeff, args.use_scheduler, args.scheduler_step_size, args.scheduler_gamma,
+                        args.use_advantage_moving_average, args.advantage_ema_alpha)
 
     # --- 4. 创建训练对 ---
     print("--- 正在创建训练对 ---")
@@ -270,6 +271,12 @@ if __name__ == "__main__":
     parser.add_argument('--use_cuda', action='store_true', help='强制使用 CUDA (如果可用)')
     parser.add_argument('--print_every', type=int, default=500, help='每隔多少个 episode 打印一次日志')
     parser.add_argument('--save_every', type=int, default=500, help='每隔多少个 episode 保存一次模型检查点')
+
+    # --- 新增: 优势方差缩减参数 ---
+    parser.add_argument('--use_advantage_moving_average', action='store_true',
+                        help='启用优势的移动平均标准化，以稳定训练。')
+    parser.add_argument('--advantage_ema_alpha', type=float, default=0.01,
+                        help='优势移动平均的平滑系数 (EMA alpha)。')
 
     args = parser.parse_args()
     main(args)
