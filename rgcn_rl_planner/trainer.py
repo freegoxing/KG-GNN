@@ -1,9 +1,20 @@
 """
-强化学习环境与训练器 (重构版)
+强化学习环境与训练器模块
 
-本模块包含 RLEnvironment 和 RLTrainer 两个核心类。
-- RLEnvironment: 定义了智能体在知识图谱中导航的规则、状态、动作和奖励 (已移除手动权重)。
-- RLTrainer: 封装了基于预训练嵌入的 Actor-Critic 算法的完整训练和更新逻辑。
+本模块实现了基于知识图谱的强化学习环境（RLEnvironment）
+以及对应的训练器（RLTrainer），用于在预训练节点嵌入空间中
+进行路径规划与策略学习。
+
+核心特性包括：
+- 基于嵌入相似度的势能奖励整形（Potential-Based Reward Shaping），
+  提供更密集、稳定的学习信号；
+- PageRank 引导的早期探索机制（可控步数）；
+- 支持动作剪枝（Top-K）、低频关系惩罚等结构性约束；
+- 引入奖励裁剪、EMA 平滑与优势移动平均等稳定性改进策略；
+- 完整封装 Actor-Critic 训练、评估（MRR）与早停逻辑。
+
+该模块是 RGCN + RL 联合学习框架中负责
+“环境建模 + 策略优化”的核心组成部分。
 """
 
 import logging
@@ -141,7 +152,7 @@ class RLEnvironment:
         if num_to_keep > 0:
             # `torch.topk` 返回 (values, indices)
             _, top_k_indices = torch.topk(similarities, k=num_to_keep)
-            
+
             # 从原始列表中根据索引选出节点
             top_k_neighbors = [unvisited_neighbors[i] for i in top_k_indices]
             return top_k_neighbors
@@ -333,9 +344,9 @@ class RLTrainer:
 
                 # 更新移动平均
                 self._advantage_mean = (1 - self.advantage_ema_alpha) * self._advantage_mean + \
-                                    self.advantage_ema_alpha * current_advantage_mean
+                                       self.advantage_ema_alpha * current_advantage_mean
                 self._advantage_std = (1 - self.advantage_ema_alpha) * self._advantage_std + \
-                                    self.advantage_ema_alpha * current_advantage_std
+                                      self.advantage_ema_alpha * current_advantage_std
 
                 # 使用移动平均值进行标准化
                 advantages = (advantages - self._advantage_mean) / (self._advantage_std + 1e-8)
@@ -385,7 +396,7 @@ class RLTrainer:
                 state, _, done, _ = self.env.step(action)
                 if done:
                     break
-        
+
         success = self.env.current_node == self.env.target_node
         path_len = len(self.env.path) - 1
         return success, path_len
@@ -397,13 +408,13 @@ class RLTrainer:
         """
         if not validation_pairs:
             return 0.0
-        
+
         total_reciprocal_rank = 0.0
         for start_node, target_node in validation_pairs:
             success, path_len = self.evaluate_episode(start_node, target_node)
             if success and path_len > 0:
                 total_reciprocal_rank += 1.0 / path_len
-        
+
         mrr = total_reciprocal_rank / len(validation_pairs)
         return mrr
 

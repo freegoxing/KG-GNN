@@ -1,8 +1,11 @@
-# -*- coding: utf-8 -*-
-# @Time    : 2024/7/24
-# @Author  : free
-# @File    : utils.py
-# @Description :
+"""
+实验可复现性与随机性控制模块
+
+本模块封装了实验过程中涉及的随机种子设置逻辑，
+统一管理 Python、NumPy 以及 PyTorch（含 CUDA）的随机性来源，
+以保证 RGCN + RL 训练与评估过程的可复现性。
+"""
+
 import os
 import random
 

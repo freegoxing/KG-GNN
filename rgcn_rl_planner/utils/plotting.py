@@ -1,3 +1,10 @@
+"""
+实验结果分析与可视化模块
+
+本模块用于将训练与评估阶段产生的关键指标以图表形式进行可视化，
+便于实验分析、结果复现以及论文或技术报告中的结果展示。
+"""
+
 from typing import List, Optional
 
 import matplotlib.pyplot as plt
