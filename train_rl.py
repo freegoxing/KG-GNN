@@ -19,11 +19,11 @@ import torch
 from torch_geometric.data import Data
 
 from rgcn_rl_planner.data_loader import load_custom_kg_from_json, load_standard_dataset
-from rgcn_rl_planner.data_utils import process_custom_kg, process_standard_kg, calculate_pagerank
+from rgcn_rl_planner.utils.data_processing import process_custom_kg, process_standard_kg, calculate_pagerank
 # 本项目模块导入
 from rgcn_rl_planner.models import RLPolicyNet
 from rgcn_rl_planner.trainer import RLEnvironment, RLTrainer
-from rgcn_rl_planner.utils import set_seed
+from rgcn_rl_planner.utils.seeding import set_seed
 
 
 def has_path(start_node: int, end_node: int, adj: Dict[int, List[int]]) -> bool:

@@ -16,7 +16,7 @@ import torch
 from torch_geometric.data import Data
 from torch_geometric.utils import to_networkx
 
-from .data_loader import KnowledgeGraph
+from rgcn_rl_planner.data_loader import KnowledgeGraph
 
 # --- 类型注释 ---
 EntityMap = Dict[str, int]
