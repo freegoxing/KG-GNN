@@ -23,6 +23,7 @@ from torch_geometric.utils import negative_sampling
 from rgcn_rl_planner.data_loader import load_custom_kg_from_json, load_standard_dataset
 from rgcn_rl_planner.data_utils import process_custom_kg, process_standard_kg, save_mappings
 from rgcn_rl_planner.models import RGCNEncoder
+from rgcn_rl_planner.utils import set_seed
 
 
 def train(encoder: RGCNEncoder,
@@ -82,9 +83,7 @@ def main(args):
     use_cuda = torch.cuda.is_available() and args.use_cuda
     device = torch.device('cuda' if use_cuda else 'cpu')
     print(f"--- 使用设备: {device} ---")
-    torch.manual_seed(args.seed)
-    if device.type == 'cuda':
-        torch.cuda.manual_seed(args.seed)
+    set_seed(args.seed, force_deterministic=args.force_deterministic)
 
     # OOM 优化 2: 仅在 CUDA 环境下启用 AMP
     use_amp = use_cuda and args.use_amp
@@ -214,6 +213,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=42, help='随机种子')
     parser.add_argument('--use_cuda', action='store_true', help='强制使用 CUDA (如果可用)')
     parser.add_argument('--print_every', type=int, default=50, help='每隔多少个 epoch 打印一次日志')
+    parser.add_argument('--force_deterministic', action='store_true', help='强制使用确定性算法以确保可复现性')
 
     args = parser.parse_args()
     main(args)

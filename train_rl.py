@@ -23,6 +23,7 @@ from rgcn_rl_planner.data_utils import process_custom_kg, process_standard_kg, c
 # 本项目模块导入
 from rgcn_rl_planner.models import RLPolicyNet
 from rgcn_rl_planner.trainer import RLEnvironment, RLTrainer
+from rgcn_rl_planner.utils import set_seed
 
 
 def has_path(start_node: int, end_node: int, adj: Dict[int, List[int]]) -> bool:
@@ -46,8 +47,7 @@ def main(args):
     # --- 1. 环境和路径设置 ---
     device = torch.device('cuda' if torch.cuda.is_available() and args.use_cuda else 'cpu')
     print(f"--- 使用设备: {device} ---")
-    torch.manual_seed(args.seed)
-    if device.type == 'cuda': torch.cuda.manual_seed(args.seed)
+    set_seed(args.seed)
 
     # 根据数据集名称动态设置路径
     data_root = os.path.join(args.data_dir, args.dataset_name)
@@ -113,7 +113,6 @@ def main(args):
                 if count < args.low_freq_relation_threshold:
                     low_freq_relations.add(r_id)
             print(f"--- 已识别 {len(low_freq_relations)} 个低频关系 ---")
-
 
         node_embeddings = torch.load(embedding_path, map_location=device)
         # 确保两个 data 对象都有嵌入

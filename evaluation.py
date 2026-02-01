@@ -43,6 +43,7 @@ from tests.visualization import plot_metric_over_time
 # 解耦后的数据加载和处理模块
 from rgcn_rl_planner.data_loader import load_custom_kg_from_json, load_standard_dataset
 from rgcn_rl_planner.data_utils import process_custom_kg, process_standard_kg, calculate_pagerank
+from rgcn_rl_planner.utils import set_seed
 
 
 # --- 核心函数 (大部分保持不变) ---
@@ -301,6 +302,9 @@ def main(args):
     device = torch.device('cuda' if torch.cuda.is_available() and args.use_cuda else 'cpu')
     print(f"--- 使用设备: {device} ---")
 
+    # 设置随机种子
+    set_seed(args.seed)
+
     all_known_triplets_main: Optional[Set[Tuple[int, int, int]]] = None  # 初始化以避免UnboundLocalError
 
     # 根据数据集名称动态设置路径
@@ -428,7 +432,7 @@ def main(args):
         reward_alpha=args.reward_alpha,
         reward_eta=args.reward_eta
     )
-    kf = KFold(n_splits=args.k_folds, shuffle=True, random_state=42)
+    kf = KFold(n_splits=args.k_folds, shuffle=True, random_state=args.seed)
 
     # --- 5. 查找并排序模型检查点 ---
     model_files = glob.glob(os.path.join(model_dir, args.model_name_pattern))
@@ -529,6 +533,7 @@ if __name__ == "__main__":
     # 可视化参数
     parser.add_argument('--save_plot', action='store_true', help='是否保存评估指标图表')
     parser.add_argument('--plot_filename_base', type=str, default='evaluation_summary_v1', help='保存图表的基础文件名')
+    parser.add_argument('--seed', type=int, default=42, help='随机种子')
 
     args = parser.parse_args()
     main(args)
