@@ -51,6 +51,10 @@ class RLEnvironment:
                  action_pruning_k: Optional[int] = None,  # 新增: Top-K 动作剪枝的 K值
                  low_freq_relations: Optional[set] = None,  # 新增: 低频关系的 ID 集合
                  low_freq_penalty: float = 0.0,  # 新增: 对低频关系的惩罚值
+                 # --- 新增：稳定性改进超参数 ---
+                 reward_clipping_value: Optional[float] = 0.3,  # 建议1: 势能奖励变化裁剪值
+                 reward_ema_alpha: float = 0.1,  # 建议1: 势能奖励EMA平滑系数
+                 pagerank_exploration_steps: int = 3,  # 建议2: PageRank仅在早期应用的步数
                  ):
         self.data = data
         self.node_map = node_map
@@ -71,6 +75,9 @@ class RLEnvironment:
         self.action_pruning_k = action_pruning_k
         self.low_freq_relations = low_freq_relations if low_freq_relations is not None else set()
         self.low_freq_penalty = low_freq_penalty
+        self.reward_clipping_value = reward_clipping_value
+        self.reward_ema_alpha = reward_ema_alpha
+        self.pagerank_exploration_steps = pagerank_exploration_steps
 
         self.adjacency_list = self._build_adjacency_list()
 
@@ -108,6 +115,7 @@ class RLEnvironment:
         self.step_count = 0
         # 在 reset 时计算初始势能
         self.previous_potential = self._calculate_potential(self.current_node)
+        self.last_shaping_reward: float = 0.0  # 建议1: 重置EMA平滑奖励的状态
         return self.current_node
 
     def get_valid_actions(self) -> List[int]:
@@ -170,13 +178,25 @@ class RLEnvironment:
         reward = 0.0
         done = False
 
-        # 1. 知识增益奖励 (R_gain) - 基于 PageRank
-        r_gain = self.pagerank_values.get(action, 0.0)
-        reward += self.REWARD_ALPHA * r_gain
+        # 1. 知识增益奖励 (R_gain) - 建议2: 仅在探索早期使用
+        if self.step_count <= self.pagerank_exploration_steps:
+            r_gain = self.pagerank_values.get(action, 0.0)
+            reward += self.REWARD_ALPHA * r_gain
 
-        # 2. 核心改动：势能整形奖励 (R_shaping)
+        # 2. 核心改动：势能整形奖励 (R_shaping) - 建议1: 增加裁剪和平滑
         current_potential = self._calculate_potential(self.current_node)
-        r_shaping = current_potential - self.previous_potential
+        delta_sim = current_potential - self.previous_potential
+
+        # 裁剪 delta
+        if self.reward_clipping_value is not None:
+            delta_sim_clipped = np.clip(delta_sim, -self.reward_clipping_value, self.reward_clipping_value)
+        else:
+            delta_sim_clipped = delta_sim
+
+        # EMA 平滑
+        r_shaping = (1 - self.reward_ema_alpha) * self.last_shaping_reward + self.reward_ema_alpha * delta_sim_clipped
+        self.last_shaping_reward = r_shaping  # 更新EMA状态
+
         reward += self.REWARD_ETA * r_shaping
         self.previous_potential = current_potential  # 更新势能
 

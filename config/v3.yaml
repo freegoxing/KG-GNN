@@ -30,6 +30,12 @@ global:
         method: topk_neighbor
         k: 20
 
+      # New in v3: Stability enhancements from user feedback
+      stability_enhancements:
+        reward_clipping_value: 0.3
+        reward_ema_alpha: 0.1
+        pagerank_exploration_steps: 3
+
   training:
     rgcn:
       epochs: 4000
@@ -87,6 +93,9 @@ datasets:
       embedding_dim: 16
 
     policy:
+      variance_reduction:
+        value_baseline: true
+        moving_average: true
 
       early_stopping:
         enabled: true

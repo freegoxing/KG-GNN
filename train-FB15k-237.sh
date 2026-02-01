@@ -54,6 +54,9 @@ uv run train_rl.py \
     --action_pruning_k 20 \
     --low_freq_relation_threshold 10 \
     --low_freq_penalty 0.1 \
+    --reward_clipping_value 0.3 \
+    --reward_ema_alpha 0.1 \
+    --pagerank_exploration_steps 3 \
     $USE_CUDA_FLAG
 
 echo "--- [TRAIN] RL 训练完成: $dataset ---"

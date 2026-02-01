@@ -150,6 +150,10 @@ def main(args):
         action_pruning_k=args.action_pruning_k,  # 新增: 传递剪枝参数
         low_freq_relations=low_freq_relations,  # 新增: 传递低频关系ID
         low_freq_penalty=args.low_freq_penalty,  # 新增: 传递低频关系惩罚值
+        # --- 传递稳定性改进超参数 ---
+        reward_clipping_value=args.reward_clipping_value,
+        reward_ema_alpha=args.reward_ema_alpha,
+        pagerank_exploration_steps=args.pagerank_exploration_steps,
     )
     trainer = RLTrainer(env, model, node_embeddings, device, args.learning_rate, args.discount_factor,
                         args.entropy_coeff, args.use_scheduler, args.scheduler_step_size, args.scheduler_gamma)
@@ -247,6 +251,13 @@ if __name__ == "__main__":
     parser.add_argument('--reward_eta', type=float, default=1.0, help='势能整形奖励的权重')
     parser.add_argument('--length_reward_n', type=float, default=2.0, help='钟形长度奖励的峰值大小')
     parser.add_argument('--length_reward_sigma', type=float, default=3.0, help='钟形长度奖励的宽度 (标准差)')
+    # --- 建议1&2 新增参数 ---
+    parser.add_argument('--reward_clipping_value', type=float, default=0.3,
+                        help='[建议1] 势能奖励单步变化的裁剪值 (设为0则不裁剪)')
+    parser.add_argument('--reward_ema_alpha', type=float, default=0.1,
+                        help='[建议1] 势能奖励EMA平滑系数')
+    parser.add_argument('--pagerank_exploration_steps', type=int, default=3,
+                        help='[建议2] PageRank奖励仅在每个episode的前N步生效')
 
     # 数据集特定改进参数
     parser.add_argument('--low_freq_relation_threshold', type=int, default=0,

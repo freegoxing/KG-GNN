@@ -123,9 +123,9 @@ class RLPolicyNet(nn.Module):
         # 1. 更新路径记忆 (GRU)
         next_path_memory = self.gru_cell(current_emb, path_memory)  # [1, gru_hidden_dim]
 
-        # 2. 价值头 (Critic)
-        # 状态表示 = 路径记忆 + 目标节点嵌入
-        value_state_repr = torch.cat([path_memory.squeeze(0), target_emb])
+        # 2. 价值头 (Critic) - 建议4: 输入包含当前节点信息 (通过更新后的 path_memory)
+        # 状态表示 = 更新后的路径记忆 + 目标节点嵌入
+        value_state_repr = torch.cat([next_path_memory.squeeze(0), target_emb])
         value = self.value_head(value_state_repr)
 
         # 3. 策略头 (Actor)
