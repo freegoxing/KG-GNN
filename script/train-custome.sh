@@ -17,7 +17,7 @@ echo "============================================================"
 echo ">>>>> [CLEAN] 清理 $dataset 的 checkpoints <<<<<"
 echo "============================================================"
 
-cd "checkpoints/$dataset"
+cd ../"checkpoints/$dataset"
 bash clear.sh
 cd ../..
 

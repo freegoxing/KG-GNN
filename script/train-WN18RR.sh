@@ -13,13 +13,15 @@ DATASET_TYPE="standard"
 # 隐藏参数
 HIDDEN_DIM=64
 # 图表名称
-FILE_NAME="evaluation_summary_v3"
+FILE_NAME="evaluation_summary_v4"
+# 设置种子
+SEED=45
 
 echo "============================================================"
 echo ">>>>> [CLEAN] 清理 $dataset 的 checkpoints <<<<<"
 echo "============================================================"
 
-cd "checkpoints/$dataset"
+cd ../"checkpoints/$dataset"
 bash clear.sh
 cd ../..
 
@@ -30,11 +32,13 @@ echo "============================================================"
 uv run train_rgcn.py \
     --dataset_type "$DATASET_TYPE" \
     --dataset_name "$dataset" \
-    --epochs 4000 \
+    --epochs 8000 \
     --hidden_channels 32 \
     --out_channels $HIDDEN_DIM \
     --learning_rate 0.005 \
     --print_every 100 \
+    --seed $SEED \
+    --force_deterministic \
     $USE_CUDA_FLAG
 
 echo "--- [TRAIN] RGCN 预训练完成: $dataset ---"
@@ -47,7 +51,7 @@ echo "============================================================"
 uv run train_rl.py \
     --dataset_type "$DATASET_TYPE" \
     --dataset_name "$dataset" \
-    --num_episodes 80000 \
+    --num_episodes 120000 \
     --gru_hidden_dim $HIDDEN_DIM \
     --save_every 1000 \
     --learning_rate 0.0003 \
@@ -58,6 +62,7 @@ uv run train_rl.py \
     --pagerank_exploration_steps 3 \
     --use_advantage_moving_average \
     --advantage_ema_alpha 0.01 \
+    --seed $SEED \
     $USE_CUDA_FLAG
 
 echo "--- [TRAIN] RL 训练完成: $dataset ---"
@@ -73,6 +78,7 @@ uv run evaluation.py \
     --save_plot \
     --gru_hidden_dim $HIDDEN_DIM \
     --plot_filename_base  "$FILE_NAME" \
+    --seed $SEED \
     $USE_CUDA_FLAG
 
 echo "--- [EVAL] 模型评估完成: $dataset ---"

@@ -5,26 +5,25 @@
 set -e # 如果任何命令失败，则立即退出
 
 # 要处理的标准数据集列表
-dataset="NELL-995"
+dataset="FB15k-237"
 # 如果没有可用的 CUDA，请将 --use_cuda 标志移除或设置为空字符串 ""
 USE_CUDA_FLAG="--use_cuda"
 # 数据集类型
 DATASET_TYPE="standard"
 # 隐藏参数
-HIDDEN_DIM=16
+HIDDEN_DIM=64
 # 图表名称
-FILE_NAME="evaluation_summary_v3"
+FILE_NAME="evaluation_summary_v4"
 # 设置种子
-SEED=42
+SEED=45
 
 echo "============================================================"
 echo ">>>>> [CLEAN] 清理 $dataset 的 checkpoints <<<<<"
 echo "============================================================"
 
-cd "checkpoints/$dataset"
+cd ../"checkpoints/$dataset"
 bash clear.sh
 cd ../..
-
 echo "============================================================"
 echo ">>>>> [TRAIN] 开始为数据集 '$dataset' 进行 RGCN 预训练 <<<<<"
 echo "============================================================"
@@ -32,7 +31,7 @@ echo "============================================================"
 uv run train_rgcn.py \
     --dataset_type "$DATASET_TYPE" \
     --dataset_name "$dataset" \
-    --epochs 4000 \
+    --epochs 8000 \
     --hidden_channels 32 \
     --out_channels $HIDDEN_DIM \
     --learning_rate 0.005 \
@@ -51,15 +50,14 @@ echo "============================================================"
 uv run train_rl.py \
     --dataset_type "$DATASET_TYPE" \
     --dataset_name "$dataset" \
-    --num_episodes 80000 \
+    --num_episodes 120000 \
     --gru_hidden_dim $HIDDEN_DIM \
     --save_every 1000 \
     --learning_rate 0.0003 \
     --gradient_accumulation_steps 32 \
     --action_pruning_k 20 \
-    --use_early_stopping \
-    --early_stopping_patience 70 \
-    --num_validation_pairs 500 \
+    --low_freq_relation_threshold 10 \
+    --low_freq_penalty 0.1 \
     --reward_clipping_value 0.3 \
     --reward_ema_alpha 0.1 \
     --pagerank_exploration_steps 3 \
