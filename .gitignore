@@ -1,7 +1,7 @@
 # =========================
 # Python
 # =========================
-__pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
 
@@ -10,6 +10,7 @@ __pycache__/
 # =========================
 .venv/
 .idea/
+.vscode/
 
 # =========================
 # Deep Learning Artifacts
@@ -17,7 +18,6 @@ __pycache__/
 *.pt
 *.pth
 *.ckpt
-
 checkpoints/
 
 # =========================
@@ -31,6 +31,20 @@ checkpoints/
 data/**/node_embeddings.pt
 
 # =========================
+# Logs & runtime file
+# =========================
+**/log/
+**/logs/
+*.log
+*.out
+
+# =========================
+# Local databases
+# =========================
+*.db
+*.sqlite*
+
+# =========================
 # Archives & Temp
 # =========================
 *.zip
@@ -38,3 +52,4 @@ data/**/node_embeddings.pt
 *.npz
 *.partac
 *.tgz.partac
+*~
