@@ -424,26 +424,13 @@ class RLTrainer:
               gradient_accumulation_steps: int = 16,
               print_every: int = 100,
               save_every: int = 200,
-              model_save_dir: str = './checkpoints/',
-              validation_pairs: Optional[List[Tuple[int, int]]] = None,
-              use_early_stopping: bool = False,
-              early_stopping_patience: int = 3):
+              model_save_dir: str = './checkpoints/' ):
         """执行完整的训练循环, 并使用梯度累积、早停和验证。"""
         logging.info(f"--- 开始 RL 策略训练，共 {num_episodes} episodes on {self.device} ---")
         logging.info(f"--- 梯度将每 {gradient_accumulation_steps} episodes 累积更新一次 ---")
 
-        if use_early_stopping:
-            if not validation_pairs:
-                logging.warning("警告: 开启了早停但未提供验证集, 早停将不会生效。")
-                use_early_stopping = False
-            else:
-                logging.info(f"--- 早停机制已启用, Patience: {early_stopping_patience}, "
-                             f"每 {save_every} episodes 验证一次 ---")
-
         success_count = 0
         total_rewards_list, path_lengths_list = [], []
-        best_mrr = -1.0
-        patience_counter = 0
 
         self.optimizer.zero_grad()
 
@@ -480,34 +467,13 @@ class RLTrainer:
                              f"Success Rate: {success_rate:.2%}")
                 success_count = 0
 
-            # --- 验证、早停与保存逻辑 ---
+            # --- 保存逻辑 ---
             if (episode + 1) % save_every == 0:
-                # 1. 无条件保存周期性检查点
+                # 无条件保存周期性检查点
                 os.makedirs(model_save_dir, exist_ok=True)
                 checkpoint_filename = f"rl_policy_net_episode_{episode + 1}.pt"
                 checkpoint_path = os.path.join(model_save_dir, checkpoint_filename)
                 torch.save(self.model.state_dict(), checkpoint_path)
                 logging.info(f"--- 模型检查点已保存至 {checkpoint_path} ---")
 
-                # 2. 如果启用早停，则执行验证
-                if use_early_stopping and validation_pairs:
-                    logging.info(f"--- Episode {episode + 1}: 开始在验证集上进行评估 ---")
-                    current_mrr = self.run_evaluation(validation_pairs)
-                    logging.info(f"--- 验证 MRR: {current_mrr:.6f} | 历史最佳 MRR: {best_mrr:.6f} ---")
-
-                    # 仅更新计数器和最佳分数，不改变保存行为
-                    if current_mrr > best_mrr:
-                        best_mrr = current_mrr
-                        patience_counter = 0
-                        logging.info(f"--- 新的最佳 MRR！Patience 重置为 0。 ---")
-                    else:
-                        patience_counter += 1
-                        logging.info(f"--- MRR 未提升。Patience: {patience_counter}/{early_stopping_patience} ---")
-
-                    if patience_counter >= early_stopping_patience:
-                        logging.info(f"--- 早停触发！连续 {early_stopping_patience} 次验证性能未提升。训练终止。 ---")
-                        break  # 提前结束训练
-
         logging.info("\n--- 训练完成 ---")
-        if use_early_stopping:
-            logging.info(f"--- 最终最佳验证 MRR: {best_mrr:.6f} ---")

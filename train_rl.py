@@ -19,10 +19,10 @@ import torch
 from torch_geometric.data import Data
 
 from rgcn_rl_planner.data_loader import load_custom_kg_from_json, load_standard_dataset
-from rgcn_rl_planner.utils.data_processing import process_custom_kg, process_standard_kg, calculate_pagerank
 # 本项目模块导入
 from rgcn_rl_planner.models import RLPolicyNet
 from rgcn_rl_planner.trainer import RLEnvironment, RLTrainer
+from rgcn_rl_planner.utils.data_processing import process_custom_kg, process_standard_kg, calculate_pagerank
 from rgcn_rl_planner.utils.seeding import set_seed
 
 
@@ -186,12 +186,6 @@ def main(args):
         if len(training_pairs) > args.num_training_pairs:
             training_pairs = random.sample(training_pairs, args.num_training_pairs)
 
-        # 新增: 使用验证集中的 (头, 尾) 作为验证对
-        if args.use_early_stopping:
-            validation_pairs = list(set([(h, t) for h, r, t in valid_triplets if h != t]))
-            if len(validation_pairs) > args.num_validation_pairs:
-                validation_pairs = random.sample(validation_pairs, args.num_validation_pairs)
-
     if not training_pairs:
         print("错误：未能创建任何训练对。")
         return
@@ -201,8 +195,7 @@ def main(args):
 
     # --- 5. 开始训练 ---
     trainer.train(training_pairs, args.num_episodes, args.gradient_accumulation_steps,
-                  args.print_every, args.save_every, model_dir,
-                  validation_pairs, args.use_early_stopping, args.early_stopping_patience)
+                  args.print_every, args.save_every, model_dir)
 
 
 if __name__ == "__main__":
@@ -236,14 +229,6 @@ if __name__ == "__main__":
     parser.add_argument('--use_scheduler', action='store_true', help='启用学习率调度器')
     parser.add_argument('--scheduler_step_size', type=int, default=1000, help='学习率调度器的步长 (episodes)')
     parser.add_argument('--scheduler_gamma', type=float, default=0.95, help='学习率调度器的衰减因子')
-
-    # 早停参数 (NELL-995 specific)
-    parser.add_argument('--use_early_stopping', action='store_true',
-                        help='[NELL-995] 启用基于验证集 MRR 的早停机制')
-    parser.add_argument('--early_stopping_patience', type=int, default=3,
-                        help='[NELL-995] 早停的 patience (连续多少次验证无提升后停止)')
-    parser.add_argument('--num_validation_pairs', type=int, default=500,
-                        help='[NELL-995] 用于验证的节点对数量')
 
     # 奖励函数参数
     parser.add_argument('--optimal_path_length', type=int, default=None, help='钟形长度奖励的中心 (最佳路径长度)')

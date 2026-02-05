@@ -86,8 +86,7 @@ def load_standard_dataset(dataset_path: str) -> Tuple[
     该函数会查找并加载 train.txt, valid.txt, 和 test.txt 文件。
     """
     print(f"--- 正在从 '{dataset_path}' 加载标准数据集文件 ---")
-    print(f"--- 当前工作目录: {os.getcwd()} ---")
-
+    
     absolute_dataset_path = os.path.abspath(dataset_path)
     print(f"--- 解析后的绝对路径: {absolute_dataset_path} ---")
 
