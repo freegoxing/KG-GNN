@@ -9,14 +9,23 @@ import json
 import os
 from typing import List, Dict, Tuple, Set, Union, Optional
 
-import cudf
-import cugraph
 import networkx as nx
 import torch
 from torch_geometric.data import Data
 from torch_geometric.utils import to_networkx
 
 from rgcn_rl_planner.data_loader import KnowledgeGraph
+
+# 动态导入
+try:
+    import cudf
+    import cugraph
+
+    HAS_CUGRAPH = True
+except ImportError:
+    cudf = None
+    cugraph = None
+    HAS_CUGRAPH = False
 
 # --- 类型注释 ---
 EntityMap = Dict[str, int]
@@ -39,6 +48,10 @@ def pyg_to_cugraph(pyg_data: Data, directed: bool = True) -> Optional[cugraph.Gr
     Returns:
         Optional[cugraph.Graph]: 转换后的 cugraph.Graph 对象，如果无法转换则返回 None。
     """
+    if not HAS_CUGRAPH:
+        print("--- cuDF/cuGraph 不可用，无法进行 GPU 图转换。---")
+        return None
+
     if pyg_data.edge_index.device.type != 'cuda':
         print(f"--- 错误: pyg_to_cugraph 需要数据在 CUDA 设备上。当前设备: {pyg_data.edge_index.device.type} ---")
         return None
@@ -76,7 +89,7 @@ def calculate_pagerank(data: Data) -> Dict[int, float]:
     """
     print("--- 正在计算 PageRank ---")
 
-    if torch.cuda.is_available():
+    if torch.cuda.is_available() and HAS_CUGRAPH:
         data_gpu = data.to("cuda") if data.edge_index.device.type == "cpu" else data
 
         G = pyg_to_cugraph(data_gpu, directed=True)

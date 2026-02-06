@@ -22,15 +22,15 @@ KG-GNN/
 
 ## 平台要求 (Platform Requirements)
 
-本项目依赖 NVIDIA RAPIDS 库（cuml, cugraph, cudf 等），推荐在 **Linux + CUDA GPU** 环境下运行。
+本项目可在 **CPU 环境** 下运行；GPU + CUDA 仅用于加速，非硬性要求。若需启用 GPU 加速，则依赖 NVIDIA RAPIDS 库（cuml, cugraph, cudf 等），推荐在 **Linux + CUDA GPU** 环境下运行。
 
-- 推荐环境：
+- GPU 加速推荐环境：
 	- Ubuntu 24.04
 	- NVIDIA GPU
-	- CUDA 13.x
+	- CUDA 130
 	- Python 3.12
 
-> ⚠️ 注意：
+> ⚠️ 注意（仅当使用 GPU 加速时）：
 > - 本项目默认使用 **CUDA 13**（cu13 系列）的 RAPIDS 和 PyTorch 包。
 > - 若使用其他 CUDA 版本（例如 11.x 或 12.x），可以在 `project.toml` 中中修改对应依赖及索引 URL，然后重新执行 `uv sync`
 >
@@ -167,5 +167,5 @@ uv run evaluation.py \
 ## Notes
 
 - 这个项目旨在用于研究和实验目的。
-- 确保使用 GPU + CUDA 环境以获得最佳性能。**本项目对 NVIDIA RAPIDS 库有硬性依赖。** 如果缺少 CUDA 环境和对应的 RAPIDS 库，程序将无法正常运行。
+- GPU + CUDA 仅用于加速，可在 CPU 环境下正常运行但速度较慢。
 - 该框架具有模块化特性：RGCN 编码器、强化学习代理以及评估功能均可独立运行。
